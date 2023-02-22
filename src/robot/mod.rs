@@ -2,6 +2,7 @@ mod hexapod;
 mod leg;
 mod sequence;
 mod move_sequence;
+mod functions;
 
 pub use hexapod::*;
 pub use leg::*;

@@ -1,6 +1,6 @@
 use core::fmt::Debug;
 use crate::math::{ FloatType as float, Vector3 };
-use super::{ Sequence, SequenceFn };
+use super::{ Sequence, SequenceFn, functions };
 
 
 #[derive(Debug, Clone)]
@@ -33,12 +33,7 @@ impl SequenceFn for LegPosMoveFn {
             self.pos.clone()
         }
         else {
-            let h = self.step_height;
-            let s = self.pos[2];
-            let b = 2.0*h + (4.0*h*h - 4.0*h*s).sqrt();
-            let a = s - b;
-            let z = a*x*x + b*x;
-            Vector3::new(self.pos[0] * x, self.pos[1] * x, z)
+            functions::quad_step(x, &self.pos, self.step_height)
         }
     }
 
