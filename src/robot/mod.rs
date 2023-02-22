@@ -58,23 +58,40 @@ impl Leg {
 }
 
 trait SequenceFn: Debug + Clone {
-    fn get(&self, x: float) -> Vector3;
+
+    /// TODO
+    fn dist(&self) -> float;
+
+    /// TODO
+    fn get(&self, pos: float) -> Vector3;
+
+    /// TODO
+    fn has_finished(&self, pos: float) -> bool;
 }
 
 #[derive(Debug, Clone)]
-pub struct LegPosMoveSeqFn {
+pub struct LegPosMoveFn {
     pos: Vector3,
-    step_height: float
+    step_height: float,
+    offset: float
 }
 
-impl LegPosMoveSeqFn {
-    pub fn new(pos: Vector3, step_height: float) -> Self {
-        LegPosMoveSeqFn{ pos, step_height }
+impl LegPosMoveFn {
+    pub fn new(pos: Vector3, step_height: float, offset: float) -> Self {
+        let step_height = if pos[2] - step_height > 0.0 { pos[2] + step_height } else { step_height };
+        LegPosMoveFn{ pos, step_height, offset }
     }
 }
 
-impl SequenceFn for LegPosMoveSeqFn {
-    fn get(&self, x: float) -> Vector3 {
+impl SequenceFn for LegPosMoveFn {
+    fn dist(&self) -> float {
+        self.pos.len()
+    }
+
+    fn get(&self, pos: float) -> Vector3 {
+         // Map x to a relative position between 0.0 and 1.0
+        let x = if pos != 0.0 { pos / self.pos.len() - self.offset } else { pos };
+
         if x < 0.0 {
             Vector3::new(0.0, 0.0, 0.0)
         }
@@ -90,11 +107,23 @@ impl SequenceFn for LegPosMoveSeqFn {
             Vector3::new(self.pos[0] * x, self.pos[1] * x, z)
         }
     }
+
+    fn has_finished(&self, pos: float) -> bool {
+        let x = if pos != 0.0 { pos / self.pos.len() - self.offset } else { pos };
+        x >= 1.0
+    }
 }
 
-trait Sequence: Debug {
+pub trait Sequence: Debug {
+    /// Advances the sequence based on the provided parameters.
+    ///
+    /// `speed` must be given in m/s and `time` must be given in ms.
     fn advance(&mut self, speed: float, time: u32);
+
+    /// TODO
     fn pos(&self, leg_id: usize) -> Vector3;
+
+    /// TODO
     fn has_finished(&self) -> bool {
         false
     }
@@ -102,42 +131,37 @@ trait Sequence: Debug {
 
 #[derive(Debug, Clone)]
 pub struct LegPosMove {
-    last_time: u32,
     x: float,
-    x_max: float,
-    seqs: [LegPosMoveSeqFn; 6],
-    gait_offsets: [float; 6]
+    seqs: [LegPosMoveFn; 6]
 }
 
 impl LegPosMove {
-    pub fn new(seqs: [LegPosMoveSeqFn; 6], gait_offsets: [float; 6]) -> Self {
-        let max_gait_offset = gait_offsets.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
+
+    /// Creates a new `LegPosMove` with an independent sequence for each leg.
+    pub fn new(seqs: [LegPosMoveFn; 6]) -> Self {
         LegPosMove{
-            last_time: 0,
             x: 0.0,
-            x_max: 1.0 + max_gait_offset,
-            seqs: seqs,
-            gait_offsets: gait_offsets
+            seqs: seqs
         }
     }
 }
 
 impl Sequence for LegPosMove {
     fn advance(&mut self, speed: float, time: u32) {
-        let delta_time = time - self.last_time;
-        self.x += speed * (delta_time as f32) / 1000.0;
-        if self.x > self.x_max {
-            self.x = self.x_max
-        };
+        self.x += speed * (time as f32) / 1000.0;
     }
 
     fn pos(&self, leg_id: usize) -> Vector3 {
-        self.seqs[leg_id].get(self.x - self.gait_offsets[leg_id])
+        self.seqs[leg_id].get(self.x)
     }
 
     fn has_finished(&self) -> bool {
-        /* This float equality comparison is valid because of how the advance() function handles self.x. */
-        self.x == self.x_max
+        for i in 0..6 {
+            if !self.seqs[i].has_finished(self.x) {
+                return false
+            }
+        }
+        return true
     }
 }
 
@@ -163,7 +187,7 @@ impl Hexapod {
              *  c) Translate back to original position.
              * 2) Translate by the body offset.
              * 3) Translate by the leg origin position. */
-            let mut pos = (&self.body_rot * (&self.legs_end_pos[i] - &self.body_rot_origin) + &self.body_rot_origin);
+            let mut pos = &self.body_rot * (&self.legs_end_pos[i] - &self.body_rot_origin) + &self.body_rot_origin;
             pos = pos - &self.body_offset - &self.legs_origin[i] + &self.legs_seq_pos[i];
             self.legs[i].set_position(&pos);
         }
