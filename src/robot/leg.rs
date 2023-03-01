@@ -15,11 +15,6 @@ impl Leg {
 
     // TODO redundant calculations
     pub fn intersection_pos(&self) -> Vector3 {
-        let pos_zproj = Vector3::new(self.position[0], self.position[1], 0.0);
-        let mut a0 = pos_zproj.angle(&Vector3::new(1.0, 0.0, 0.0));
-        if pos_zproj[1] < 0.0 {
-            a0 *= -1.0;
-        }
         let rel_pos = &self.position - &self.joint_offset;
         let rel_pos_zproj = Vector3::new(rel_pos[0], rel_pos[1], 0.0);
         let mut a0_rel = rel_pos_zproj.angle(&Vector3::new(1.0, 0.0, 0.0));

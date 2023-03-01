@@ -10,7 +10,7 @@ pub struct Hexapod {
     body_offset: Vector3,
     body_rot: Matrix3,
     body_rot_origin: Vector3,
-    seqs: Vec<Box<dyn Sequence>>,
+    seqs: Vec<Sequence>,
     speed: float
 }
 
@@ -65,13 +65,13 @@ impl Hexapod {
             seq.advance(self.speed, time);
             if seq.has_finished() {
                 for i in 0..6 {
-                    self.legs_end_pos[i] += seq.pos(i);
+                    self.legs_end_pos[i] += seq.get_leg_pos(i);
                 }
                 false
             }
             else {
                 for i in 0..6 {
-                    self.legs_seq_pos[i] += seq.pos(i);
+                    self.legs_seq_pos[i] += seq.get_leg_pos(i);
                 }
                 true
             }
@@ -79,12 +79,12 @@ impl Hexapod {
         self.update_legs();
     }
 
-    pub fn start_seq(&mut self, seq: impl Sequence + 'static) {
-        self.seqs.push(Box::new(seq));
+    pub fn start_seq(&mut self, seq: Sequence) {
+        self.seqs.push(seq);
     }
 
-    pub fn stop_seq(&mut self, seq: impl Sequence + 'static) {
-        self.seqs.push(Box::new(seq));
+    pub fn stop_seq(&mut self, seq: Sequence) {
+        self.seqs.push(seq);
     }
 
     pub fn set_speed(&mut self, speed: float) {

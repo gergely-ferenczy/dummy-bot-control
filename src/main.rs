@@ -1,19 +1,19 @@
-use log::{info, error};
-use std::net::SocketAddr;
-use std::io::Write;
-use futures_util::{SinkExt, StreamExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::{accept_async, tungstenite::Error as Err, WebSocketStream};
-use tungstenite::Result as Res;
-use tungstenite::Message;
-use json::{JsonValue};
+#![allow(dead_code)] // TODO: remove this after prototyping phase is done
 
+use std::time::{ Duration, Instant };
+use std::io::Write;
+use log::{ info };
+use futures_util::{ SinkExt, StreamExt };
+use tokio::net::{ TcpListener };
+use tokio_tungstenite::{ accept_async };
+use tungstenite::Message;
+use json::{ JsonValue };
 
 mod math;
 mod robot;
 
 use math::{ Vector3 };
-use robot::{ Hexapod, Leg, WalkSequence, WalkSequenceFn };
+use robot::{ Hexapod, Leg, Sequence, WalkSequenceFn };
 
 
 
@@ -89,24 +89,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ];
 
         let mut h = Hexapod::new(legs, legs_origin, legs_end_pos);
-        let seq_fn1 = WalkSequenceFn::new(Vector3::new(0.0, 0.04, 0.0), 0.03, (1.0 / 3.0) * 0.0);
-        let seq_fn2 = WalkSequenceFn::new(Vector3::new(0.0, 0.04, 0.0), 0.03, (1.0 / 3.0) * 4.0);
-        let seq_fn3 = WalkSequenceFn::new(Vector3::new(0.0, 0.04, 0.0), 0.03, (1.0 / 3.0) * 2.0);
-        let seq_fn4 = WalkSequenceFn::new(Vector3::new(0.0, 0.04, 0.0), 0.03, (1.0 / 3.0) * 3.0);
-        let seq_fn5 = WalkSequenceFn::new(Vector3::new(0.0, 0.04, 0.0), 0.03, (1.0 / 3.0) * 1.0);
-        let seq_fn6 = WalkSequenceFn::new(Vector3::new(0.0, 0.04, 0.0), 0.03, (1.0 / 3.0) * 5.0);
-        let seq = WalkSequence::new([seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6]);
+        let seq_fn1 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 0.0);
+        let seq_fn2 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 4.0);
+        let seq_fn3 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 2.0);
+        let seq_fn4 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 3.0);
+        let seq_fn5 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 1.0);
+        let seq_fn6 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 5.0);
+        let seq = Sequence::new([seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6]);
+
         h.start_seq(seq);
-        h.set_speed(0.2);
+        h.set_speed(0.1);
+
+        let period :u64 = 10;
+        let start = Instant::now();
 
         let mut cntr = 0;
         loop {
-            if cntr > 300 {
-                h.advance_sequences(10);
+            if cntr > (3000 / period) {
+                h.advance_sequences(period as u32);
             }
 
             tx.send(create_pos_info_msg(&h)).unwrap();
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            std::thread::sleep(Duration::from_millis(cntr * period).saturating_sub(start.elapsed()));
             cntr += 1;
         }
     });
@@ -122,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ws_stream = accept_async(stream).await.expect("Failed to accept");
         info!("New WebSocket connection: {}", peer);
 
-        let (mut write, mut read) = ws_stream.split();
+        let (mut write, _) = ws_stream.split();
 
         loop {
             let msg = rx.recv().unwrap();
