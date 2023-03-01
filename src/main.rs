@@ -89,12 +89,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ];
 
         let mut h = Hexapod::new(legs, legs_origin, legs_end_pos);
-        let seq_fn1 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 0.0);
-        let seq_fn2 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 4.0);
-        let seq_fn3 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 2.0);
-        let seq_fn4 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 3.0);
-        let seq_fn5 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 1.0);
-        let seq_fn6 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 5.0);
+        // let seq_fn1 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 0.0);
+        // let seq_fn2 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 4.0);
+        // let seq_fn3 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 2.0);
+        // let seq_fn4 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 3.0);
+        // let seq_fn5 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 1.0);
+        // let seq_fn6 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 5.0);
+        let seq_fn1 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 0.0);
+        let seq_fn2 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 1.0);
+        let seq_fn3 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 0.0);
+        let seq_fn4 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 1.0);
+        let seq_fn5 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 0.0);
+        let seq_fn6 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 1.0);
         let seq = Sequence::new([seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6]);
 
         h.start_seq(seq);
