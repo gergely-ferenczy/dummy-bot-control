@@ -94,4 +94,8 @@ impl Hexapod {
     pub fn leg(&self, leg_id: usize) -> &Leg {
         &self.legs[leg_id]
     }
+
+    pub fn leg_origin(&self, leg_id: usize) -> &Vector3 {
+        &self.legs_origin[leg_id]
+    }
 }

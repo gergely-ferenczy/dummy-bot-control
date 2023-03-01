@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+env_logger = "0.10.0"
+futures-util = "0.3.26"
+json = "0.12.4"
+log = "0.4.17"
+tokio = { version = "1.*", features = ["full"] }
+tokio-tungstenite = "0.18.*"
+tungstenite = "0.18.*"
