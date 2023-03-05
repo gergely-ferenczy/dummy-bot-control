@@ -3,10 +3,9 @@
 use std::time::{ Duration, Instant };
 use std::io::Write;
 use log::{ info };
-use futures_util::{ SinkExt, StreamExt };
-use tokio::net::{ TcpListener };
-use tokio_tungstenite::{ accept_async };
-use tungstenite::Message;
+
+use std::net::TcpListener;
+use tungstenite::{ accept, Message };
 use json::{ JsonValue };
 
 mod math;
@@ -48,6 +47,51 @@ fn create_pos_info_msg(h: &Hexapod) -> JsonValue {
 }
 
 
+fn monitor_listener(rx: std::sync::mpsc::Receiver<JsonValue>) {
+    let addr = "127.0.0.1:8080";
+    let listener = TcpListener::bind(&addr).expect("Can't listen");
+    info!("Listening on: {}", addr);
+
+    // Handle connections
+    while let Ok((stream, _)) = listener.accept() {
+        let peer = stream.peer_addr().expect("connected streams should have a peer address");
+        let mut ws_stream = accept(stream).expect("Failed to accept");
+        info!("New WebSocket connection: {}", peer);
+
+        loop {
+            let msg = rx.recv().unwrap();
+            let msg_str = json::stringify(msg);
+            let res = ws_stream.write_message(Message::Text(msg_str));
+            if res.is_err() {
+                break;
+            }
+        }
+    }
+}
+
+fn control_listener() {
+    let addr = "127.0.0.1:8081";
+    let listener = TcpListener::bind(&addr).expect("Can't listen");
+    info!("Listening on: {}", addr);
+
+    // Handle connections
+    while let Ok((stream, _)) = listener.accept() {
+        let peer = stream.peer_addr().expect("connected streams should have a peer address");
+        let mut ws_stream = accept(stream).expect("Failed to accept");
+        info!("New WebSocket connection: {}", peer);
+
+        loop {
+            if let Ok(msg) = ws_stream.read_message() {
+                info!("{}", msg.into_text().unwrap());
+            }
+            else {
+                break;
+            }
+        }
+    }
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
@@ -56,13 +100,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .format(|buf, record| { writeln!(buf, "{}: {}", record.level(), record.args()) })
         .init();
 
-
-    let addr = "127.0.0.1:8080";
-
-
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let _ = std::thread::spawn(move || {
+    let robot_control_thread = std::thread::spawn(move || {
         let legs = [
             Leg::new(0.06, 0.08, Vector3::zero()),
             Leg::new(0.06, 0.08, Vector3::zero()),
@@ -121,28 +161,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let monitor_listener_thread = std::thread::spawn(move || {
+        monitor_listener(rx);
+    });
 
-    // Start server
-    let listener = TcpListener::bind(&addr).await.expect("Can't listen");
-    info!("Listening on: {}", addr);
+    let control_listener_thread = std::thread::spawn(move || {
+        control_listener();
+    });
 
-    // Handle connections
-    while let Ok((stream, _)) = listener.accept().await {
-        let peer = stream.peer_addr().expect("connected streams should have a peer address");
-        let ws_stream = accept_async(stream).await.expect("Failed to accept");
-        info!("New WebSocket connection: {}", peer);
-
-        let (mut write, _) = ws_stream.split();
-
-        loop {
-            let msg = rx.recv().unwrap();
-            let msg_str = json::stringify(msg);
-            let res = write.send(Message::Text(msg_str)).await;
-            if res.is_err() {
-                break;
-            }
-        }
-    }
+    monitor_listener_thread.join().expect("Couldn't join on the associated thread");
+    control_listener_thread.join().expect("Couldn't join on the associated thread");
+    robot_control_thread.join().expect("Couldn't join on the associated thread");
 
     Ok(())
 }
