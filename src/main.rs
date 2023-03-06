@@ -1,5 +1,6 @@
 #![allow(dead_code)] // TODO: remove this after prototyping phase is done
 
+use std::f32::consts::PI;
 use std::time::{ Duration, Instant };
 use std::io::Write;
 use log::{ info };
@@ -135,31 +136,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ];
         let legs_end_pos = [
             Vector3::new(-0.1,  0.1, 0.00),
-            Vector3::new(-0.12, 0.0, 0.00),
+            Vector3::new(-0.11, 0.0, 0.00),
             Vector3::new(-0.1, -0.1, 0.00),
             Vector3::new( 0.1,  0.1, 0.00),
-            Vector3::new( 0.12, 0.0, 0.00),
+            Vector3::new( 0.11, 0.0, 0.00),
             Vector3::new( 0.1, -0.1, 0.00)
         ];
 
         let mut h = Hexapod::new(legs, legs_origin, legs_end_pos);
+        h.set_speed(0.02);
 
         let period :u64 = 10;
         let start = Instant::now();
 
         let mut cntr = 0;
         loop {
-            if cntr > (3000 / period) {
-                h.update(period as u32);
-            }
+            h.update(period as u32);
 
             monitor_tx.send(create_pos_info_msg(&h)).unwrap();
 
             while let Ok(cp) = control_rx.try_recv() {
-                info!("{:?}", cp);
-                let step = cp.step * 0.1;
-                h.set_speed(cp.speed);
-                h.set_step(step, cp.step_height);
+                let step = cp.step * 0.1; // Vector2::new(0.0, 0.08);
+                let speed = cp.speed * 0.2; // 0.02;
+
+                h.set_speed(speed);
+                h.set_step(&step, cp.step_height);
             }
 
             std::thread::sleep(Duration::from_millis(cntr * period).saturating_sub(start.elapsed()));

@@ -122,8 +122,8 @@ impl Div<&float> for &Vector2 {
         Vector2::new(self.v[0]/rhs, self.v[1]/rhs)
     }
 }
-impl_op_variants!(Div, div, *, Vector2, float, Vector2);
-impl_op_assign_variants!(DivAssign, div_assign, *, Vector2, float, Vector2);
+impl_op_variants!(Div, div, /, Vector2, float, Vector2);
+impl_op_assign_variants!(DivAssign, div_assign, /, Vector2, float, Vector2);
 
 impl Div<&Vector2> for &float {
     type Output = Vector2;
@@ -256,6 +256,9 @@ mod tests {
 
     #[test]
     fn norm() {
+
+        println!("{}", Vector2::new(10.0, 0.0).norm());
+
         // Already normalized vectors
         assert!(Vector2::near_eq_rel(
             &Vector2::new(1.0, 0.0).norm(),
@@ -285,7 +288,7 @@ mod tests {
 
         // Random vectors
         assert!(Vector2::near_eq_rel(
-            &Vector2::new(573576, 819152).norm(),
+            &Vector2::new(573576.0, 819152.0).norm(),
             &Vector2::new(0.573576, 0.819152),
             &TOL
         ));

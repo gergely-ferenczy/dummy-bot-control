@@ -132,8 +132,8 @@ impl Div<&float> for &Vector3 {
         Vector3::new(self.v[0]/rhs, self.v[1]/rhs, self.v[2]/rhs)
     }
 }
-impl_op_variants!(Div, div, *, Vector3, float, Vector3);
-impl_op_assign_variants!(DivAssign, div_assign, *, Vector3, float, Vector3);
+impl_op_variants!(Div, div, /, Vector3, float, Vector3);
+impl_op_assign_variants!(DivAssign, div_assign, /, Vector3, float, Vector3);
 
 impl Div<&Vector3> for &float {
     type Output = Vector3;

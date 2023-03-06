@@ -1,5 +1,5 @@
 use crate::math::{ transform, FloatType as float, Vector2, Vector3, Matrix3 };
-use super::{ Leg, Sequence, WalkSequenceFn };
+use super::{ Leg, Sequence };
 
 #[derive(Debug)]
 pub struct Hexapod {
@@ -79,7 +79,7 @@ impl Hexapod {
         self.speed = speed;
     }
 
-    pub fn set_step(&mut self, step: Vector2, step_height: float) {
+    pub fn set_step(&mut self, step: &Vector2, step_height: float) {
         self.step = step.clone();
         self.step_height = step_height;
 
@@ -88,13 +88,7 @@ impl Hexapod {
                 walk_sequence.update(&self.step, self.step_height);
             }
             else {
-                let seq_fn1 = WalkSequenceFn::new(&self.step, self.step_height, 0.0);
-                let seq_fn2 = WalkSequenceFn::new(&self.step, self.step_height, 1.0);
-                let seq_fn3 = WalkSequenceFn::new(&self.step, self.step_height, 0.0);
-                let seq_fn4 = WalkSequenceFn::new(&self.step, self.step_height, 1.0);
-                let seq_fn5 = WalkSequenceFn::new(&self.step, self.step_height, 0.0);
-                let seq_fn6 = WalkSequenceFn::new(&self.step, self.step_height, 1.0);
-                let seq = Sequence::new([seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6]);
+                let seq = Sequence::new(&self.step, self.step_height);
                 self.walk_sequence = Some(seq);
             }
         }
