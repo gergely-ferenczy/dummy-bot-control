@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::{Add, Sub, Neg, AddAssign, SubAssign, Index, IndexMut, Mul, MulAssign} };
+use std::{fmt::Display, ops::{Add, Sub, Neg, AddAssign, SubAssign, Index, IndexMut, Mul, MulAssign, Div, DivAssign} };
 use super::{FloatEq, FloatType as float};
 
 /// | 0 |
@@ -49,7 +49,7 @@ impl Vector3 {
     pub fn norm(&self) -> Self {
         let len = self.len();
         assert_ne!(len, 0.0, "A vector with 0 length cannot be normalized.");
-        self * (1.0 / len)
+        self / len
     }
 
     pub fn dot(&self, other: &Self)-> float {
@@ -124,6 +124,25 @@ impl Mul<&Vector3> for &float {
     }
 }
 impl_op_variants!(Mul, mul, *, float, Vector3, Vector3);
+
+impl Div<&float> for &Vector3 {
+    type Output = Vector3;
+
+    fn div(self, rhs: &float) -> Self::Output {
+        Vector3::new(self.v[0]/rhs, self.v[1]/rhs, self.v[2]/rhs)
+    }
+}
+impl_op_variants!(Div, div, *, Vector3, float, Vector3);
+impl_op_assign_variants!(DivAssign, div_assign, *, Vector3, float, Vector3);
+
+impl Div<&Vector3> for &float {
+    type Output = Vector3;
+
+    fn div(self, rhs: &Vector3) -> Self::Output {
+        rhs / self
+    }
+}
+impl_op_variants!(Div, div, /, float, Vector3, Vector3);
 
 impl Neg for Vector3 {
     type Output = Self;

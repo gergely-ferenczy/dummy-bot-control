@@ -226,13 +226,15 @@ mod circle;
 mod matrices;
 mod point;
 pub mod transform;
-mod vectors;
+mod vector2;
+mod vector3;
 mod quaternion;
 
 pub use circle::*;
 pub use matrices::*;
 pub use point::*;
-pub use vectors::*;
+pub use vector2::*;
+pub use vector3::*;
 pub use quaternion::*;
 
 

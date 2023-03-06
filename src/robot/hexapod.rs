@@ -1,5 +1,5 @@
-use crate::math::{ transform, FloatType as float, Vector3, Matrix3 };
-use super::{ Leg, Sequence };
+use crate::math::{ transform, FloatType as float, Vector2, Vector3, Matrix3 };
+use super::{ Leg, Sequence, WalkSequenceFn };
 
 #[derive(Debug)]
 pub struct Hexapod {
@@ -10,8 +10,10 @@ pub struct Hexapod {
     body_offset: Vector3,
     body_rot: Matrix3,
     body_rot_origin: Vector3,
-    seqs: Vec<Sequence>,
-    speed: float
+    walk_sequence: Option<Sequence>,
+    speed: float,
+    step: Vector2,
+    step_height: float
 }
 
 impl Hexapod {
@@ -38,8 +40,10 @@ impl Hexapod {
             body_offset: Vector3::zero(),
             body_rot: Matrix3::identity(),
             body_rot_origin: Vector3::zero(),
-            seqs: vec![],
-            speed: 1.0
+            walk_sequence: Option::None,
+            speed: 1.0,
+            step: Vector2::zero(),
+            step_height: 0.0
         };
         res.update_legs();
 
@@ -57,38 +61,48 @@ impl Hexapod {
         self.update_legs();
     }
 
-    pub fn advance_sequences(&mut self, time: u32) {
+    pub fn update(&mut self, time: u32) {
         for i in 0..6 {
             self.legs_seq_pos[i] = Vector3::zero();
         }
-        self.seqs.retain_mut(|seq| {
-            seq.advance(self.speed, time);
-            if seq.has_finished() {
-                for i in 0..6 {
-                    self.legs_end_pos[i] += seq.get_leg_pos(i);
-                }
-                false
+
+        if let Some(walk_sequence) = &mut self.walk_sequence {
+            walk_sequence.advance(self.speed, time);
+            for i in 0..6 {
+                self.legs_seq_pos[i] += walk_sequence.get_leg_pos(i);
             }
-            else {
-                for i in 0..6 {
-                    self.legs_seq_pos[i] += seq.get_leg_pos(i);
-                }
-                true
-            }
-        });
+        }
         self.update_legs();
-    }
-
-    pub fn start_seq(&mut self, seq: Sequence) {
-        self.seqs.push(seq);
-    }
-
-    pub fn stop_seq(&mut self, seq: Sequence) {
-        self.seqs.push(seq);
     }
 
     pub fn set_speed(&mut self, speed: float) {
         self.speed = speed;
+    }
+
+    pub fn set_step(&mut self, step: Vector2, step_height: float) {
+        self.step = step.clone();
+        self.step_height = step_height;
+
+        if step.len() > 0.0 {
+            if let Some(walk_sequence) = &mut self.walk_sequence {
+                walk_sequence.update(&self.step, self.step_height);
+            }
+            else {
+                let seq_fn1 = WalkSequenceFn::new(&self.step, self.step_height, 0.0);
+                let seq_fn2 = WalkSequenceFn::new(&self.step, self.step_height, 1.0);
+                let seq_fn3 = WalkSequenceFn::new(&self.step, self.step_height, 0.0);
+                let seq_fn4 = WalkSequenceFn::new(&self.step, self.step_height, 1.0);
+                let seq_fn5 = WalkSequenceFn::new(&self.step, self.step_height, 0.0);
+                let seq_fn6 = WalkSequenceFn::new(&self.step, self.step_height, 1.0);
+                let seq = Sequence::new([seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6]);
+                self.walk_sequence = Some(seq);
+            }
+        }
+        else if let Some(walk_sequence) = &self.walk_sequence {
+            for i in 0..6 {
+                self.legs_end_pos[i] += walk_sequence.get_leg_pos(i);
+            }
+        }
     }
 
     pub fn leg(&self, leg_id: usize) -> &Leg {

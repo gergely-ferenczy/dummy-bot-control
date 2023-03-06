@@ -11,9 +11,15 @@ use json::{ JsonValue };
 mod math;
 mod robot;
 
-use math::{ Vector3 };
-use robot::{ Hexapod, Leg, Sequence, WalkSequenceFn };
+use math::{ Vector2, Vector3, FloatType as float };
+use robot::{ Hexapod, Leg };
 
+#[derive(Debug)]
+struct ControlPacket {
+    speed: float,
+    step: Vector2,
+    step_height: float
+}
 
 
 fn get_msg_text(msg: &Message) -> Option<&str> {
@@ -69,7 +75,7 @@ fn monitor_listener(rx: std::sync::mpsc::Receiver<JsonValue>) {
     }
 }
 
-fn control_listener() {
+fn control_listener(tx: std::sync::mpsc::Sender<ControlPacket>) {
     let addr = "127.0.0.1:8081";
     let listener = TcpListener::bind(&addr).expect("Can't listen");
     info!("Listening on: {}", addr);
@@ -82,7 +88,16 @@ fn control_listener() {
 
         loop {
             if let Ok(msg) = ws_stream.read_message() {
-                info!("{}", msg.into_text().unwrap());
+                if let Ok(msg_text) = msg.into_text() {
+                    let json_data = json::parse(msg_text.as_str()).unwrap();
+                    let cp = ControlPacket{
+                        speed: json_data["speed"].as_f32().unwrap(),
+                        step: Vector2::new(json_data["step"]["x"].as_f32().unwrap(), json_data["step"]["y"].as_f32().unwrap()),
+                        step_height: json_data["step_height"].as_f32().unwrap()
+                    };
+
+                    tx.send(cp);
+                }
             }
             else {
                 break;
@@ -91,16 +106,15 @@ fn control_listener() {
     }
 }
 
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| { writeln!(buf, "{}: {}", record.level(), record.args()) })
         .init();
 
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (monitor_tx, monitor_rx) = std::sync::mpsc::channel();
+    let (control_tx, control_rx) = std::sync::mpsc::channel::<ControlPacket>();
 
     let robot_control_thread = std::thread::spawn(move || {
         let legs = [
@@ -129,22 +143,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ];
 
         let mut h = Hexapod::new(legs, legs_origin, legs_end_pos);
-        // let seq_fn1 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 0.0);
-        // let seq_fn2 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 4.0);
-        // let seq_fn3 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 2.0);
-        // let seq_fn4 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 3.0);
-        // let seq_fn5 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 1.0);
-        // let seq_fn6 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, (1.0 / 3.0) * 5.0);
-        let seq_fn1 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 0.0);
-        let seq_fn2 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 1.0);
-        let seq_fn3 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 0.0);
-        let seq_fn4 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 1.0);
-        let seq_fn5 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 0.0);
-        let seq_fn6 = WalkSequenceFn::new(Vector3::new(0.0, 0.08, 0.0), 0.03, 1.0);
-        let seq = Sequence::new([seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6]);
-
-        h.start_seq(seq);
-        h.set_speed(0.1);
 
         let period :u64 = 10;
         let start = Instant::now();
@@ -152,21 +150,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut cntr = 0;
         loop {
             if cntr > (3000 / period) {
-                h.advance_sequences(period as u32);
+                h.update(period as u32);
             }
 
-            tx.send(create_pos_info_msg(&h)).unwrap();
+            monitor_tx.send(create_pos_info_msg(&h)).unwrap();
+
+            while let Ok(cp) = control_rx.try_recv() {
+                info!("{:?}", cp);
+                let step = cp.step * 0.1;
+                h.set_speed(cp.speed);
+                h.set_step(step, cp.step_height);
+            }
+
             std::thread::sleep(Duration::from_millis(cntr * period).saturating_sub(start.elapsed()));
             cntr += 1;
         }
     });
 
     let monitor_listener_thread = std::thread::spawn(move || {
-        monitor_listener(rx);
+        monitor_listener(monitor_rx);
     });
 
     let control_listener_thread = std::thread::spawn(move || {
-        control_listener();
+        control_listener(control_tx);
     });
 
     monitor_listener_thread.join().expect("Couldn't join on the associated thread");
