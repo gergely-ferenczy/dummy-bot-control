@@ -34,46 +34,43 @@ impl WalkSequenceFn {
 
     pub fn update(&mut self, step: &Vector2, step_height_weight: float) {
         let step_update = StepConfig{ step: Vector3::new(step[0], step[1], 0.0), step_height_weight };
-        if self.state == 0 {
-            self.step_update1 = Option::Some(step_update);
+        let step_pos = self.get();
+
+        let mut cycle_pos = (self.x + 0.5 - self.offset) % 2.0;
+        if cycle_pos > 1.0 {
+            cycle_pos -= 1.0;
+            let a = &self.step_cfg.step;
+            let b = &step_update.step;
+            self.step_start = -b/2.0 + (a-b)/2.0 * (cycle_pos - 0.5);
+            self.step_cfg.step = step_update.step.clone();
             self.state = 1;
         }
         else {
-            self.step_update2 = Option::Some(step_update);
+            self.state = 2;
         }
+
+        self.step_update1 = Option::Some(step_update);
     }
 
     pub fn advance(&mut self, x: float) {
-        if self.state == 1 {
-            let switch_point = 1.5 + self.offset;
+        let cycle_pos_prev = (self.x + 0.5 - self.offset) % 2.0;
+        let cycle_pos_curr = (x + 0.5 - self.offset) % 2.0;
 
-            if (self.x <= switch_point && x >= switch_point) || (self.x > x && self.offset == 0.0) {
-                let step_update = self.step_update1.as_ref().unwrap(); // TODO: remove this mess
-                self.step_cfg.step = &step_update.step / 2.0 - &self.step_start;
-                self.step_cfg.step_height_weight = step_update.step_height_weight;
-                self.state = 2;
+        if self.state == 1 {
+            let step_update = self.step_update1.as_ref().unwrap();
+
+            if cycle_pos_prev > cycle_pos_curr {
+                self.step_cfg.step = &step_update.step - &self.step_start;
+                self.state = 0;
             }
         }
         else if self.state == 2 {
-            let switch_point = if self.offset < 1.0 {
-                2.5 + self.offset
-            }
-            else {
-                0.5 + self.offset
-            };
-
-            if (self.x <= switch_point && x >= switch_point) || (self.x > x && self.offset == 1.0) {
-                let step = &self.step_update1.as_ref().unwrap().step; // TODO: remove this mess
+            if cycle_pos_prev <= 1.0 && cycle_pos_curr > 1.0 {
+                let step_update = self.step_update1.as_ref().unwrap(); // TODO: remove this mess
+                let step = &step_update.step;
                 self.step_start = Vector3::new(-step[0]/2.0, -step[1]/2.0, 0.0);
                 self.step_cfg.step = step.clone();
-
-                if self.step_update2.is_some() {
-                    self.step_update1 = self.step_update2.take();
-                    self.state = 1;
-                }
-                else {
-                    self.state = 0;
-                }
+                self.state = 0;
             }
         }
 
