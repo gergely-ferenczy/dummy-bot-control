@@ -19,7 +19,7 @@ use robot::{ Hexapod, Leg };
 struct ControlPacket {
     speed: float,
     step: Vector2,
-    step_height: float
+    step_height_weight: float
 }
 
 
@@ -90,14 +90,15 @@ fn control_listener(tx: std::sync::mpsc::Sender<ControlPacket>) {
         loop {
             if let Ok(msg) = ws_stream.read_message() {
                 if let Ok(msg_text) = msg.into_text() {
-                    let json_data = json::parse(msg_text.as_str()).unwrap();
-                    let cp = ControlPacket{
-                        speed: json_data["speed"].as_f32().unwrap(),
-                        step: Vector2::new(json_data["step"]["x"].as_f32().unwrap(), json_data["step"]["y"].as_f32().unwrap()),
-                        step_height: json_data["step_height"].as_f32().unwrap()
-                    };
+                    if let Ok(json_data) = json::parse(msg_text.as_str()) {
+                        let cp = ControlPacket{
+                            speed: json_data["speed"].as_f32().unwrap(),
+                            step: Vector2::new(json_data["step"]["x"].as_f32().unwrap(), json_data["step"]["y"].as_f32().unwrap()),
+                            step_height_weight: json_data["step_height_weight"].as_f32().unwrap()
+                        };
 
-                    tx.send(cp);
+                        tx.send(cp);
+                    }
                 }
             }
             else {
@@ -160,7 +161,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let speed = cp.speed * 0.2; // 0.02;
 
                 h.set_speed(speed);
-                h.set_step(&step, cp.step_height);
+                h.set_step(&step, cp.step_height_weight);
+                info!("{:?} {:?}", &step, speed);
             }
 
             std::thread::sleep(Duration::from_millis(cntr * period).saturating_sub(start.elapsed()));
