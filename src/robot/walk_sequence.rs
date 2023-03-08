@@ -18,12 +18,12 @@ impl WalkSequence {
         // let seq_fn4 = WalkSequenceFn::new(step, step_height, 1.0);
         // let seq_fn5 = WalkSequenceFn::new(step, step_height, 0.0);
         // let seq_fn6 = WalkSequenceFn::new(step, step_height, 1.0);
-        let seq_fn1 = WalkSequenceFn::new(step, step_height_weight, (1.0 / 3.0) * 0.0);
-        let seq_fn2 = WalkSequenceFn::new(step, step_height_weight, (1.0 / 3.0) * 4.0);
-        let seq_fn3 = WalkSequenceFn::new(step, step_height_weight, (1.0 / 3.0) * 2.0);
-        let seq_fn4 = WalkSequenceFn::new(step, step_height_weight, (1.0 / 3.0) * 3.0);
-        let seq_fn5 = WalkSequenceFn::new(step, step_height_weight, (1.0 / 3.0) * 1.0);
-        let seq_fn6 = WalkSequenceFn::new(step, step_height_weight, (1.0 / 3.0) * 5.0);
+        let seq_fn1 = WalkSequenceFn::new(1, step, step_height_weight, (1.0 / 3.0) * 0.0);
+        let seq_fn2 = WalkSequenceFn::new(2, step, step_height_weight, (1.0 / 3.0) * 4.0);
+        let seq_fn3 = WalkSequenceFn::new(3, step, step_height_weight, (1.0 / 3.0) * 2.0);
+        let seq_fn4 = WalkSequenceFn::new(4, step, step_height_weight, (1.0 / 3.0) * 3.0);
+        let seq_fn5 = WalkSequenceFn::new(5, step, step_height_weight, (1.0 / 3.0) * 1.0);
+        let seq_fn6 = WalkSequenceFn::new(6, step, step_height_weight, (1.0 / 3.0) * 5.0);
 
         WalkSequence{ x: 0.0, sequence_fns: [seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6]}
     }
