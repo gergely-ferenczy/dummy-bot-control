@@ -33,7 +33,7 @@ impl WalkSequenceFn {
         WalkSequenceFn{ id, x, step_start, step_cfg, step_update1: Option::None, step_update2: Option::None, offset, state }
     }
 
-    pub fn update(&mut self, step: &Vector2, step_height_weight: float) {
+    pub fn update(&mut self, step: &Vector2, step_height_weight: float) -> Result<(), float> {
         let step_update = StepConfig{ step: Vector3::new(step[0], step[1], 0.0), step_height_weight };
 
         let mut cycle_pos = (self.x + 0.5 - self.offset) % 2.0;
@@ -41,15 +41,27 @@ impl WalkSequenceFn {
             cycle_pos -= 1.0;
             let a = &self.step_cfg.step;
             let b = &step_update.step;
-            self.step_start = &self.step_start + (a-b) * (1.0 - cycle_pos);
-            self.step_cfg = step_update.clone();
-            self.state = 1;
+            let step_start = &self.step_start + (a-b) * (1.0 - cycle_pos);
+            if step_start.len() <= 0.8 { // TODO: remove hard coded value
+                self.step_start = step_start;
+                self.step_cfg = step_update.clone();
+                self.state = 1;
+                self.step_update1 = Option::Some(step_update);
+                Ok(())
+            }
+            else {
+                Err(0.5)
+            }
         }
         else {
-            self.state = 3;
+            if (&self.step_start + &self.step_cfg.step - &step_update.step).len() <= 0.8 {
+                self.state = 3;
+                Ok(())
+            }
+            else {
+                Err(0.5)
+            }
         }
-
-        self.step_update1 = Option::Some(step_update);
     }
 
     pub fn advance(&mut self, x: float) {
