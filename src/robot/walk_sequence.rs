@@ -1,5 +1,7 @@
 use core::fmt::Debug;
 
+use log::info;
+
 use crate::math::{ FloatType as float, Vector2, Vector3 };
 use super::{ WalkSequenceFn };
 
@@ -55,6 +57,9 @@ impl WalkSequence {
             }
             self.step_update = Some(StepUpdate { step: step.clone(), step_height_weight });
         }
+        else {
+            self.step_update = None;
+        }
     }
 
     /// Advances the sequence based on the provided parameters.
@@ -64,7 +69,7 @@ impl WalkSequence {
         let distance = speed * (time as float) / 1000.0;
         let step_len = self.sequence_fns.iter()
             .map(|x| x.dist())
-            .min_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
+            .fold(0.0, |acc, x| acc + x ) / 6.0;
 
         self.x += 2.0 * distance / step_len;
 

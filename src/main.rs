@@ -1,6 +1,5 @@
 #![allow(dead_code)] // TODO: remove this after prototyping phase is done
 
-use std::f32::consts::PI;
 use std::time::{ Duration, Instant };
 use std::io::Write;
 use log::{ info };
@@ -157,8 +156,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             monitor_tx.send(create_pos_info_msg(&h)).unwrap();
 
             while let Ok(cp) = control_rx.try_recv() {
-                let step = cp.step * 0.04; // Vector2::new(0.0, 0.08);
-                let speed = cp.speed * 0.1; // 0.02;
+                let step = cp.step * 0.1; // Vector2::new(0.0, 0.08);
+                let speed = cp.speed * 0.15; // 0.02;
 
                 h.set_speed(speed);
                 h.set_step(&step, cp.step_height_weight);

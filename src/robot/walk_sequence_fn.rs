@@ -1,5 +1,5 @@
 use core::fmt::Debug;
-use crate::math::{ FloatType as float, Vector2, Vector3 };
+use crate::{math::{ FloatType as float, FloatEq, Vector2, Vector3 }, float_eq};
 use super::{ functions };
 use log::{ info };
 
@@ -34,33 +34,38 @@ impl WalkSequenceFn {
     }
 
     pub fn update(&mut self, step: &Vector2, step_height_weight: float) -> Result<(), float> {
+        let max_len = 0.05;
         let step_update = StepConfig{ step: Vector3::new(step[0], step[1], 0.0), step_height_weight };
+        let a = &self.step_cfg.step;
+        let a_end = &self.step_start + a;
+        let b = &step_update.step;
+        let qa = b[0]*b[0] + b[1]*b[1];
+        let qb = -2.0 * (a_end[0] * b[0] + a_end[1] * b[1]);
+        let qc = a_end[0]*a_end[0] + a_end[1]*a_end[1] - max_len*max_len;
+        let scale = (-qb + (qb*qb - 4.0*qa*qc).sqrt()) / (2.0 * qa);
 
-        let mut cycle_pos = (self.x + 0.5 - self.offset) % 2.0;
-        if cycle_pos > 1.0 {
-            cycle_pos -= 1.0;
-            let a = &self.step_cfg.step;
-            let b = &step_update.step;
-            let step_start = &self.step_start + (a-b) * (1.0 - cycle_pos);
-            if step_start.len() <= 0.8 { // TODO: remove hard coded value
+        // if self.id == 1 {
+        //     info!("{} {} {} {}", a, a_end, b, scale);
+        // }
+
+        if scale > 1.0 || float_eq!(scale, 1.0, 1e-5, abs) {
+            let mut cycle_pos = (self.x + 0.5 - self.offset) % 2.0;
+            if cycle_pos > 1.0 {
+                cycle_pos -= 1.0;
+
+                let step_start = &self.step_start + (a-b) * (1.0 - cycle_pos);
                 self.step_start = step_start;
                 self.step_cfg = step_update.clone();
                 self.state = 1;
-                self.step_update1 = Option::Some(step_update);
-                Ok(())
             }
             else {
-                Err(0.5)
+                self.state = 3;
             }
+            self.step_update1 = Option::Some(step_update);
+            Ok(())
         }
         else {
-            if (&self.step_start + &self.step_cfg.step - &step_update.step).len() <= 0.8 {
-                self.state = 3;
-                Ok(())
-            }
-            else {
-                Err(0.5)
-            }
+            Err(scale)
         }
     }
 
