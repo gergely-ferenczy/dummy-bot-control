@@ -1,12 +1,12 @@
 use core::fmt::Debug;
 use crate::{math::{ FloatType as float, FloatEq, Vector2, Vector3 }, float_eq};
 use super::{ functions };
-use log::{ info };
 
 #[derive(Debug, Clone)]
 struct StepConfig {
     step: Vector3,
-    step_height_weight: float
+    step_height_weight: float,
+    max_step_len: float
 }
 
 #[derive(Debug, Clone)]
@@ -22,10 +22,10 @@ pub struct WalkSequenceFn {
 }
 
 impl WalkSequenceFn {
-    pub fn new(id: u32, step: &Vector2, step_height_weight: float, offset: float) -> Self {
+    pub fn new(id: u32, step: &Vector2, step_height_weight: float, max_step_len: float, offset: float) -> Self {
         let x = 0.0;
         let step_start = Vector3::new(-step[0]/2.0, -step[1]/2.0, 0.0);
-        let step_cfg = StepConfig{ step: Vector3::new(step[0], step[1], 0.0), step_height_weight };
+        let step_cfg = StepConfig{ step: Vector3::new(step[0], step[1], 0.0), step_height_weight, max_step_len };
         let state = 0;
 
         debug_assert!(offset >= 0.0 && offset < 2.0);
@@ -33,20 +33,15 @@ impl WalkSequenceFn {
         WalkSequenceFn{ id, x, step_start, step_cfg, step_update1: Option::None, step_update2: Option::None, offset, state }
     }
 
-    pub fn update(&mut self, step: &Vector2, step_height_weight: float) -> Result<(), float> {
-        let max_len = 0.05;
-        let step_update = StepConfig{ step: Vector3::new(step[0], step[1], 0.0), step_height_weight };
+    pub fn update(&mut self, step: &Vector2, step_height_weight: float, max_step_len: float) -> Result<(), float> {
+        let step_update = StepConfig{ step: Vector3::new(step[0], step[1], 0.0), step_height_weight, max_step_len };
         let a = &self.step_cfg.step;
         let a_end = &self.step_start + a;
         let b = &step_update.step;
         let qa = b[0]*b[0] + b[1]*b[1];
         let qb = -2.0 * (a_end[0] * b[0] + a_end[1] * b[1]);
-        let qc = a_end[0]*a_end[0] + a_end[1]*a_end[1] - max_len*max_len;
+        let qc = a_end[0]*a_end[0] + a_end[1]*a_end[1] - (max_step_len*max_step_len) / 4.0;
         let scale = (-qb + (qb*qb - 4.0*qa*qc).sqrt()) / (2.0 * qa);
-
-        // if self.id == 1 {
-        //     info!("{} {} {} {}", a, a_end, b, scale);
-        // }
 
         if scale > 1.0 || float_eq!(scale, 1.0, 1e-5, abs) {
             let mut cycle_pos = (self.x + 0.5 - self.offset) % 2.0;

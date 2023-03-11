@@ -1,6 +1,17 @@
 use crate::math::{ transform, FloatType as float, Vector2, Vector3, Matrix3 };
 use super::{ Leg, WalkSequence, StopSequence };
-use log::{ info };
+
+
+pub struct HexapodConfig {
+    pub leg_len1: float,
+    pub leg_len2: float,
+    pub joint_offset: [Vector3; 6],
+    pub legs_origin: [Vector3; 6],
+    pub legs_end_pos_default: [Vector3; 6],
+    pub max_speed: float,
+    pub max_step_len: float
+}
+
 
 #[derive(Debug)]
 pub struct Hexapod {
@@ -16,7 +27,9 @@ pub struct Hexapod {
     stop_sequence: Option<StopSequence>,
     speed: float,
     step: Vector2,
-    step_height_weight: float
+    step_height_weight: float,
+    max_speed: float,
+    max_step_len: float
 }
 
 impl Hexapod {
@@ -34,12 +47,21 @@ impl Hexapod {
         }
     }
 
-    pub fn new(legs: [Leg; 6], legs_origin: [Vector3; 6], legs_end_pos: [Vector3; 6]) -> Self {
+    pub fn new(config: HexapodConfig) -> Self {
+        let legs = [
+            Leg::new(config.leg_len1, config.leg_len2, config.joint_offset[0].clone()),
+            Leg::new(config.leg_len1, config.leg_len2, config.joint_offset[1].clone()),
+            Leg::new(config.leg_len1, config.leg_len2, config.joint_offset[2].clone()),
+            Leg::new(config.leg_len1, config.leg_len2, config.joint_offset[3].clone()),
+            Leg::new(config.leg_len1, config.leg_len2, config.joint_offset[4].clone()),
+            Leg::new(config.leg_len1, config.leg_len2, config.joint_offset[5].clone())
+        ];
+
         let mut res = Self{
             legs: legs,
-            legs_origin: legs_origin,
-            legs_end_pos_default: legs_end_pos.clone(),
-            legs_end_pos: legs_end_pos,
+            legs_origin: config.legs_origin,
+            legs_end_pos_default: config.legs_end_pos_default.clone(),
+            legs_end_pos: config.legs_end_pos_default,
             legs_seq_pos: [Vector3::zero(), Vector3::zero(), Vector3::zero(), Vector3::zero(), Vector3::zero(), Vector3::zero()],
             body_offset: Vector3::zero(),
             body_rot: Matrix3::identity(),
@@ -48,7 +70,9 @@ impl Hexapod {
             stop_sequence: Option::None,
             speed: 1.0,
             step: Vector2::zero(),
-            step_height_weight: 0.0
+            step_height_weight: 0.0,
+            max_speed: config.max_speed,
+            max_step_len: config.max_step_len
         };
         res.update_legs();
 
@@ -60,8 +84,8 @@ impl Hexapod {
         self.update_legs();
     }
 
-    pub fn set_body_rotation(&mut self, angle: float, axis: &Vector3, origin: &Vector3) {
-        self.body_rot = transform::rotate_matrix(angle, axis);
+    pub fn set_body_rotation(&mut self, angle: float, axis: Vector3, origin: &Vector3) {
+        self.body_rot = transform::rotate_matrix(angle, &axis);
         self.body_rot_origin = origin.clone();
         self.update_legs();
     }
@@ -95,19 +119,21 @@ impl Hexapod {
     }
 
     pub fn set_speed(&mut self, speed: float) {
-        self.speed = speed;
+        self.speed = speed.min(1.0).max(0.0) * self.max_speed;
     }
 
-    pub fn set_step(&mut self, step: &Vector2, step_height_weight: float) {
-        self.step = step.clone();
+    pub fn set_step(&mut self, step: Vector2, step_height_weight: float) {
+        
+        self.step = if step.len() > 1.0 { step.norm() } else { step.clone() };
+        self.step *=  self.max_step_len;
         self.step_height_weight = step_height_weight / 4.0;
 
         if step.len() > 0.0 {
             if let Some(walk_sequence) = &mut self.walk_sequence {
-                walk_sequence.update(&self.step, self.step_height_weight);
+                walk_sequence.update(&self.step, self.step_height_weight, self.max_step_len);
             }
             else {
-                let seq = WalkSequence::new(&self.step, self.step_height_weight);
+                let seq = WalkSequence::new(&self.step, self.step_height_weight, self.max_step_len);
                 self.walk_sequence = Some(seq);
             }
         }

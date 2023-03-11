@@ -1,14 +1,13 @@
 use core::fmt::Debug;
 
-use log::info;
-
 use crate::math::{ FloatType as float, Vector2, Vector3 };
 use super::{ WalkSequenceFn };
 
 #[derive(Debug, Clone)]
 struct StepUpdate {
     step: Vector2,
-    step_height_weight: float
+    step_height_weight: float,
+    max_step_len: float
 }
 
 #[derive(Debug, Clone)]
@@ -20,28 +19,28 @@ pub struct WalkSequence {
 
 impl WalkSequence {
 
-    pub fn new(step: &Vector2, step_height_weight: float) -> Self {
+    pub fn new(step: &Vector2, step_height_weight: float, max_step_len: float) -> Self {
         // let seq_fn1 = WalkSequenceFn::new(step, step_height, 0.0);
         // let seq_fn2 = WalkSequenceFn::new(step, step_height, 1.0);
         // let seq_fn3 = WalkSequenceFn::new(step, step_height, 0.0);
         // let seq_fn4 = WalkSequenceFn::new(step, step_height, 1.0);
         // let seq_fn5 = WalkSequenceFn::new(step, step_height, 0.0);
         // let seq_fn6 = WalkSequenceFn::new(step, step_height, 1.0);
-        let seq_fn1 = WalkSequenceFn::new(1, step, step_height_weight, (1.0 / 3.0) * 0.0);
-        let seq_fn2 = WalkSequenceFn::new(2, step, step_height_weight, (1.0 / 3.0) * 4.0);
-        let seq_fn3 = WalkSequenceFn::new(3, step, step_height_weight, (1.0 / 3.0) * 2.0);
-        let seq_fn4 = WalkSequenceFn::new(4, step, step_height_weight, (1.0 / 3.0) * 3.0);
-        let seq_fn5 = WalkSequenceFn::new(5, step, step_height_weight, (1.0 / 3.0) * 1.0);
-        let seq_fn6 = WalkSequenceFn::new(6, step, step_height_weight, (1.0 / 3.0) * 5.0);
+        let seq_fn1 = WalkSequenceFn::new(1, step, step_height_weight, max_step_len, (1.0 / 3.0) * 0.0);
+        let seq_fn2 = WalkSequenceFn::new(2, step, step_height_weight, max_step_len, (1.0 / 3.0) * 4.0);
+        let seq_fn3 = WalkSequenceFn::new(3, step, step_height_weight, max_step_len, (1.0 / 3.0) * 2.0);
+        let seq_fn4 = WalkSequenceFn::new(4, step, step_height_weight, max_step_len, (1.0 / 3.0) * 3.0);
+        let seq_fn5 = WalkSequenceFn::new(5, step, step_height_weight, max_step_len, (1.0 / 3.0) * 1.0);
+        let seq_fn6 = WalkSequenceFn::new(6, step, step_height_weight, max_step_len, (1.0 / 3.0) * 5.0);
 
         WalkSequence{ x: 0.0, sequence_fns: [seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6], step_update: None }
     }
 
-    pub fn update(&mut self, step: &Vector2, step_height_weight: float) {
+    pub fn update(&mut self, step: &Vector2, step_height_weight: float, max_step_len: float) {
         let mut scaling_required = false;
         let mut min_scale = 1.0;
         for i in 0..6 {
-            if let Err(scale) = self.sequence_fns[i].update(step, step_height_weight) {
+            if let Err(scale) = self.sequence_fns[i].update(step, step_height_weight, max_step_len) {
                 if min_scale > scale {
                     min_scale = scale;
                     scaling_required = true;
@@ -51,11 +50,11 @@ impl WalkSequence {
         if scaling_required {
             let smaller_step = step * min_scale;
             for i in 0..6 {
-                if let Err(scale) = self.sequence_fns[i].update(&smaller_step, step_height_weight) {
+                if let Err(scale) = self.sequence_fns[i].update(&smaller_step, step_height_weight, max_step_len) {
                     panic!("Step downscaling failed: scale={} min_scale={}", scale, min_scale);
                 }
             }
-            self.step_update = Some(StepUpdate { step: step.clone(), step_height_weight });
+            self.step_update = Some(StepUpdate { step: step.clone(), step_height_weight, max_step_len });
         }
         else {
             self.step_update = None;
@@ -79,7 +78,7 @@ impl WalkSequence {
 
         if self.step_update.is_some() {
             let step_update = self.step_update.as_ref().unwrap();
-            self.update(&step_update.step.clone(), step_update.step_height_weight);
+            self.update(&step_update.step.clone(), step_update.step_height_weight, step_update.max_step_len);
         }
 
         for seq_fn in self.sequence_fns.iter_mut() {

@@ -12,7 +12,7 @@ mod math;
 mod robot;
 
 use math::{ Vector2, Vector3, FloatType as float };
-use robot::{ Hexapod, Leg };
+use robot::{ Hexapod, HexapodConfig };
 
 #[derive(Debug)]
 struct ControlPacket {
@@ -40,8 +40,10 @@ fn create_pos_info_msg(h: &Hexapod) -> JsonValue {
         let start_pos = h.leg_origin(i);
         let mid_pos = start_pos + h.leg(i).intersection_pos();
         let end_pos = start_pos + h.leg(i).position();
+        let joint_offset = start_pos + h.leg(i).joint_offset();
 
         leg_pos.push(json::array![-start_pos[0], start_pos[2], start_pos[1]]);
+        leg_pos.push(json::array![-joint_offset[0], joint_offset[2], joint_offset[1]]);
         leg_pos.push(json::array![-mid_pos[0], mid_pos[2], mid_pos[1]]);
         leg_pos.push(json::array![-end_pos[0], end_pos[2], end_pos[1]]);
         legs.push(leg_pos);
@@ -96,7 +98,7 @@ fn control_listener(tx: std::sync::mpsc::Sender<ControlPacket>) {
                             step_height_weight: json_data["step_height_weight"].as_f32().unwrap()
                         };
 
-                        tx.send(cp);
+                        tx.send(cp).expect("blah");
                     }
                 }
             }
@@ -109,6 +111,7 @@ fn control_listener(tx: std::sync::mpsc::Sender<ControlPacket>) {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
+
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| { writeln!(buf, "{}: {}", record.level(), record.args()) })
@@ -118,13 +121,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (control_tx, control_rx) = std::sync::mpsc::channel::<ControlPacket>();
 
     let robot_control_thread = std::thread::spawn(move || {
-        let legs = [
-            Leg::new(0.06, 0.08, Vector3::zero()),
-            Leg::new(0.06, 0.08, Vector3::zero()),
-            Leg::new(0.06, 0.08, Vector3::zero()),
-            Leg::new(0.06, 0.08, Vector3::zero()),
-            Leg::new(0.06, 0.08, Vector3::zero()),
-            Leg::new(0.06, 0.08, Vector3::zero())
+        let leg_joint_offset = [
+            Vector3::new(0.01, 0.0, -0.005),
+            Vector3::new(0.01, 0.0, -0.005),
+            Vector3::new(0.01, 0.0, -0.005),
+            Vector3::new(0.01, 0.0, -0.005),
+            Vector3::new(0.01, 0.0, -0.005),
+            Vector3::new(0.01, 0.0, -0.005)
         ];
         let legs_origin = [
             Vector3::new(-0.03,  0.05, 0.02),
@@ -143,8 +146,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Vector3::new( 0.1, -0.1, 0.00)
         ];
 
-        let mut h = Hexapod::new(legs, legs_origin, legs_end_pos);
-        h.set_speed(0.02);
+        let config = HexapodConfig {
+            leg_len1: 0.06,
+            leg_len2: 0.06,
+            joint_offset: leg_joint_offset,
+            legs_origin: legs_origin,
+            legs_end_pos_default: legs_end_pos,
+            max_speed: 0.15,
+            max_step_len: 0.08
+        };
+
+        let mut h = Hexapod::new(config);
 
         let period :u64 = 10;
         let start = Instant::now();
@@ -156,11 +168,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             monitor_tx.send(create_pos_info_msg(&h)).unwrap();
 
             while let Ok(cp) = control_rx.try_recv() {
-                let step = cp.step * 0.1; // Vector2::new(0.0, 0.08);
-                let speed = cp.speed * 0.15; // 0.02;
-
-                h.set_speed(speed);
-                h.set_step(&step, cp.step_height_weight);
+                h.set_speed(cp.speed);
+                h.set_step(cp.step, cp.step_height_weight);
                 //info!("{:?} {:?}", &step, speed);
             }
 
