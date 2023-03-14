@@ -219,19 +219,26 @@ macro_rules! assert_float_ne {
 
 #[cfg(math_float_precision="64")]
 pub type FloatType = f64;
+#[cfg(math_float_precision="64")]
+pub use std::f64 as FloatModule;
 #[cfg(not(math_float_precision="64"))]
 pub type FloatType = f32;
+#[cfg(not(math_float_precision="64"))]
+pub use std::f32 as FloatModule;
 
 mod circle;
-mod matrices;
+mod matrix2;
+mod matrix3;
 mod point;
-pub mod transform;
 mod vector2;
 mod vector3;
 mod quaternion;
 
+pub mod transform;
+
 pub use circle::*;
-pub use matrices::*;
+pub use matrix2::*;
+pub use matrix3::*;
 pub use point::*;
 pub use vector2::*;
 pub use vector3::*;

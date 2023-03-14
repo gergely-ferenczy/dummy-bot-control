@@ -1,4 +1,4 @@
-use crate::math::{ transform, FloatType as float, Vector2, Vector3, Matrix3 };
+use crate::math::{ transform, FloatType as float, Vector2, Vector3, Matrix3, FloatModule };
 use super::{ Leg, WalkSequence, StopSequence };
 
 
@@ -9,7 +9,9 @@ pub struct HexapodConfig {
     pub legs_origin: [Vector3; 6],
     pub legs_end_pos_default: [Vector3; 6],
     pub max_speed: float,
-    pub max_step_len: float
+    pub max_step_radius: float,
+    pub max_step_len: float,
+    pub stop_sequence_speed: float
 }
 
 
@@ -26,10 +28,11 @@ pub struct Hexapod {
     walk_sequence: Option<WalkSequence>,
     stop_sequence: Option<StopSequence>,
     speed: float,
-    step: Vector2,
-    step_height_weight: float,
     max_speed: float,
-    max_step_len: float
+    max_step_radius: float,
+    max_step_len: float,
+    max_turn_angle: float,
+    stop_sequence_speed: float
 }
 
 impl Hexapod {
@@ -57,6 +60,16 @@ impl Hexapod {
             Leg::new(config.leg_len1, config.leg_len2, config.joint_offset[5].clone())
         ];
 
+        let mut max_turn_angle = FloatModule::consts::PI;
+        for i in 0..6 {
+            let v = Vector2::new(config.legs_end_pos_default[i].len(), config.max_step_len / 4.0);
+            let max_turn_angle_calc = (v[1] / v.len()).asin() * 4.0;
+            if max_turn_angle_calc < max_turn_angle {
+                max_turn_angle = max_turn_angle_calc;
+            }
+        }
+
+
         let mut res = Self{
             legs: legs,
             legs_origin: config.legs_origin,
@@ -68,11 +81,12 @@ impl Hexapod {
             body_rot_origin: Vector3::zero(),
             walk_sequence: Option::None,
             stop_sequence: Option::None,
-            speed: 1.0,
-            step: Vector2::zero(),
-            step_height_weight: 0.0,
+            speed: 0.0,
             max_speed: config.max_speed,
-            max_step_len: config.max_step_len
+            max_step_radius: config.max_step_radius,
+            max_step_len: config.max_step_len,
+            max_turn_angle: max_turn_angle,
+            stop_sequence_speed: config.stop_sequence_speed
         };
         res.update_legs();
 
@@ -85,7 +99,7 @@ impl Hexapod {
     }
 
     pub fn set_body_rotation(&mut self, angle: float, axis: Vector3, origin: &Vector3) {
-        self.body_rot = transform::rotate_matrix(angle, &axis);
+        self.body_rot = transform::rotate_matrix3(angle, &axis);
         self.body_rot_origin = origin.clone();
         self.update_legs();
     }
@@ -99,7 +113,7 @@ impl Hexapod {
             stop_sequence.advance(self.speed, time);
             if stop_sequence.has_finished() {
                 for i in 0..6 {
-                    self.legs_end_pos[i] += stop_sequence.get_leg_pos(i);
+                    self.legs_end_pos[i] = self.legs_end_pos_default[i].clone();
                 }
                 self.stop_sequence = Option::None;
             }
@@ -110,7 +124,7 @@ impl Hexapod {
             }
         }
         else if let Some(walk_sequence) = &mut self.walk_sequence {
-            walk_sequence.advance(self.speed, time);
+            walk_sequence.advance(self.speed, self.max_speed, time);
             for i in 0..6 {
                 self.legs_seq_pos[i] += walk_sequence.get_leg_pos(i);
             }
@@ -122,20 +136,33 @@ impl Hexapod {
         self.speed = speed.min(1.0).max(0.0) * self.max_speed;
     }
 
-    pub fn set_step(&mut self, step: Vector2, step_height_weight: float) {
-        
-        self.step = if step.len() > 1.0 { step.norm() } else { step.clone() };
-        self.step *=  self.max_step_len;
-        self.step_height_weight = step_height_weight / 4.0;
+    pub fn set_step(&mut self, step: &Vector2, turn: float, step_height_weight: float) {
+        // TODO: handle out-of-range values.
+        let step = if step.len() > 1.0 { step.norm() } else { step.clone() };
+        let step_len = step.len();
+        let step_scaled = if step.len() > 0.0 { step.norm() * (0.5 + 0.5 * step.len()) * self.max_step_len } else { step };
 
-        if step.len() > 0.0 {
+        let turn = turn.clamp(-1.0, 1.0);
+        let turn_angle = if turn != 0.0 { turn / turn.abs() * (0.5 + 0.5 * turn.abs()) * self.max_turn_angle } else { 0.0 };
+
+        let mut turn_origin = [Vector2::zero(), Vector2::zero(), Vector2::zero(), Vector2::zero(), Vector2::zero(), Vector2::zero()];
+
+        for i in 0..6 {
+            turn_origin[i] = -Vector2::from(&self.legs_end_pos_default[i]);
+        }
+
+        let step_height_weight = step_height_weight.clamp(0.0, 1.0) / 4.0;
+
+        if step_len > 0.0 || turn_angle != 0.0 {
             if let Some(walk_sequence) = &mut self.walk_sequence {
-                walk_sequence.update(&self.step, self.step_height_weight, self.max_step_len);
+                walk_sequence.update(&step_scaled, &turn_origin, turn_angle, step_height_weight, self.max_step_radius);
             }
             else {
-                let seq = WalkSequence::new(&self.step, self.step_height_weight, self.max_step_len);
+                let seq = WalkSequence::new(&step_scaled, &turn_origin, turn_angle, step_height_weight, 0.3);
                 self.walk_sequence = Some(seq);
             }
+
+            self.set_speed(Vector2::new(step_len, turn).len());
         }
         else if let Some(walk_sequence) = &self.walk_sequence {
             let mut delays = [false; 6];
@@ -159,8 +186,10 @@ impl Hexapod {
                 &self.legs_end_pos_default[5] - &self.legs_end_pos[5]
             ];
 
-            self.stop_sequence = Option::Some(StopSequence::new(positions, self.step_height_weight, delays));
+            self.stop_sequence = Option::Some(StopSequence::new(positions, step_height_weight, delays));
             self.walk_sequence = Option::None;
+
+            self.set_speed(self.stop_sequence_speed);
         }
     }
 

@@ -1,5 +1,5 @@
 use std::{fmt::Display, ops::{Add, Sub, Neg, AddAssign, SubAssign, Index, IndexMut, Mul, MulAssign, Div, DivAssign} };
-use super::{FloatEq, FloatType as float};
+use super::{FloatEq, FloatType as float, Vector2};
 
 /// | 0 |
 /// | 1 |
@@ -71,12 +71,25 @@ impl Vector3 {
 
 impl Display for Vector3 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(p) = f.precision() {
-            write!(f, "|{:.p$}, {:.p$}, {:.p$}|", self.v[0], self.v[1], self.v[2])
-        }
-        else {
-            write!(f, "|{}, {}, {}|", self.v[0], self.v[1], self.v[2])
-        }
+        write!(f, "|")?;
+        self.v[0].fmt(f)?;
+        write!(f, ", ")?;
+        self.v[1].fmt(f)?;
+        write!(f, ", ")?;
+        self.v[2].fmt(f)?;
+        write!(f, "|")
+    }
+}
+
+impl From<Vector2> for Vector3 {
+    fn from(value: Vector2) -> Self {
+        Vector3::new(value[0], value[1], 0.0)
+    }
+}
+
+impl From<&Vector2> for Vector3 {
+    fn from(value: &Vector2) -> Self {
+        Vector3::new(value[0], value[1], 0.0)
     }
 }
 

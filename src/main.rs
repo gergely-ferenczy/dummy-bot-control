@@ -18,7 +18,8 @@ use robot::{ Hexapod, HexapodConfig };
 struct ControlPacket {
     speed: float,
     step: Vector2,
-    step_height_weight: float
+    step_height_weight: float,
+    turn: float
 }
 
 
@@ -95,7 +96,8 @@ fn control_listener(tx: std::sync::mpsc::Sender<ControlPacket>) {
                         let cp = ControlPacket{
                             speed: json_data["speed"].as_f32().unwrap(),
                             step: Vector2::new(json_data["step"]["x"].as_f32().unwrap(), json_data["step"]["y"].as_f32().unwrap()),
-                            step_height_weight: json_data["step_height_weight"].as_f32().unwrap()
+                            step_height_weight: json_data["step_height_weight"].as_f32().unwrap(),
+                            turn: json_data["turn"].as_f32().unwrap()
                         };
 
                         tx.send(cp).expect("blah");
@@ -138,12 +140,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Vector3::new( 0.03, -0.05, 0.02)
         ];
         let legs_end_pos = [
-            Vector3::new(-0.1,  0.1, 0.00),
-            Vector3::new(-0.11, 0.0, 0.00),
-            Vector3::new(-0.1, -0.1, 0.00),
-            Vector3::new( 0.1,  0.1, 0.00),
-            Vector3::new( 0.11, 0.0, 0.00),
-            Vector3::new( 0.1, -0.1, 0.00)
+            Vector3::new(-0.09,  0.085, 0.00),
+            Vector3::new(-0.11,  0.0,   0.00),
+            Vector3::new(-0.09, -0.085, 0.00),
+            Vector3::new( 0.09,  0.085, 0.00),
+            Vector3::new( 0.11,  0.0,   0.00),
+            Vector3::new( 0.09, -0.085, 0.00)
         ];
 
         let config = HexapodConfig {
@@ -152,8 +154,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             joint_offset: leg_joint_offset,
             legs_origin: legs_origin,
             legs_end_pos_default: legs_end_pos,
-            max_speed: 0.15,
-            max_step_len: 0.08
+            max_speed: 0.16,
+            max_step_radius: 0.05,
+            max_step_len: 0.08,
+            stop_sequence_speed: 0.5
         };
 
         let mut h = Hexapod::new(config);
@@ -168,9 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             monitor_tx.send(create_pos_info_msg(&h)).unwrap();
 
             while let Ok(cp) = control_rx.try_recv() {
-                h.set_speed(cp.speed);
-                h.set_step(cp.step, cp.step_height_weight);
-                //info!("{:?} {:?}", &step, speed);
+                h.set_step(&cp.step, cp.turn, cp.step_height_weight);
             }
 
             std::thread::sleep(Duration::from_millis(cntr * period).saturating_sub(start.elapsed()));

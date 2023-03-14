@@ -1,6 +1,15 @@
-use super::{ Matrix3, Vector3, FloatType as float };
+use super::{ Matrix2, Matrix3, Vector3, FloatType as float };
 
-pub fn rotate_matrix(angle: float, axis: &Vector3) -> Matrix3 {
+pub fn rotate_matrix2(angle: float) -> Matrix2 {
+    let c = angle.cos();
+    let s = angle.sin();
+    Matrix2::new(
+        c, -s,
+        s,  c
+    )
+}
+
+pub fn rotate_matrix3(angle: float, axis: &Vector3) -> Matrix3 {
     let axis = axis.norm();
     let x = axis[0];
     let y = axis[1];

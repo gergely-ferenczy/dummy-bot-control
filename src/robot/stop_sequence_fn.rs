@@ -6,22 +6,22 @@ use super::{ functions };
 #[derive(Debug, Clone)]
 pub struct StopSequenceFn {
     x: float,
-    position: Vector3,
+    target_pos: Vector3,
     step_height: float
 }
 
 impl StopSequenceFn {
-    pub fn new(position: &Vector3, step_height: float) -> Self {
-        let step_height = if position[2] > 0.0 { position[2] + step_height } else { step_height };
-        StopSequenceFn{ x: 0.0, position: position.clone(), step_height }
+    pub fn new(target_pos: &Vector3, step_height: float) -> Self {
+        let step_height = if target_pos[2] > 0.0 { target_pos[2] + step_height } else { step_height };
+        StopSequenceFn{ x: 0.0, target_pos: target_pos.clone(), step_height }
     }
 
     pub fn dist(&self) -> float {
-        self.position.len()
+        self.target_pos.len()
     }
 
     pub fn advance(&mut self, x: float) {
-        self.x = x / self.position.len();
+        self.x = x / self.target_pos.len();
     }
 
     pub fn get(&self) -> Vector3 {
@@ -29,10 +29,11 @@ impl StopSequenceFn {
             Vector3::new(0.0, 0.0, 0.0)
         }
         else if self.x > 1.0 {
-            self.position.clone()
+            self.target_pos.clone()
         }
         else {
-            functions::quad_step(self.x, &self.position, self.step_height)
+            let vertical_pos = functions::quad_step_height(self.x, self.target_pos[2], self.step_height);
+            Vector3::new(self.target_pos[0] * self.x, self.target_pos[1] * self.x, vertical_pos)
         }
     }
 

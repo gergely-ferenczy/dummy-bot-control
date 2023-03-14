@@ -25,7 +25,7 @@ impl Leg {
     // TODO redundant calculations
     pub fn intersection_pos(&self) -> Vector3 {
         let z_angle = self.z_angle();
-        let rm = transform::rotate_matrix(-z_angle, &Vector3::new(0.0, 0.0, 1.0));
+        let rm = transform::rotate_matrix3(-z_angle, &Vector3::new(0.0, 0.0, 1.0));
         let pos_turned = &rm * &self.position;
         let rel_pos_turned = &pos_turned - &self.joint_offset;
 
@@ -35,13 +35,13 @@ impl Leg {
 
         let (px, py) = (intp.x, intp.y);
         let v1 = Vector3::new(px, 0.0, py);
-        let rm_rev = transform::rotate_matrix(z_angle, &Vector3::new(0.0, 0.0, 1.0));
+        let rm_rev = transform::rotate_matrix3(z_angle, &Vector3::new(0.0, 0.0, 1.0));
         &rm_rev * &v1
     }
 
     pub fn calc_joint_angles(&self) -> (float, float, float) {
         let z_angle = self.z_angle();
-        let rm = transform::rotate_matrix(z_angle, &Vector3::new(0.0, 0.0, 1.0));
+        let rm = transform::rotate_matrix3(z_angle, &Vector3::new(0.0, 0.0, 1.0));
         let pos_turned = &rm * &self.position;
         let joint_offset_turned = &rm * &self.joint_offset;
         let rel_pos_turned = pos_turned - joint_offset_turned;
@@ -74,7 +74,7 @@ impl Leg {
 
     pub fn joint_offset(&self) -> Vector3 {
         let z_angle = self.z_angle();
-        let rm = transform::rotate_matrix(z_angle, &Vector3::new(0.0, 0.0, 1.0));
+        let rm = transform::rotate_matrix3(z_angle, &Vector3::new(0.0, 0.0, 1.0));
         &rm * &self.joint_offset
     }
 }
