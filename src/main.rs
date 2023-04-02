@@ -11,15 +11,17 @@ use json::{ JsonValue };
 mod math;
 mod robot;
 
-use math::{ Vector2, Vector3, FloatType as float };
+use math::{ Vector2, Vector3, FloatType as float, FloatModule };
 use robot::{ Hexapod, HexapodConfig };
 
 #[derive(Debug)]
 struct ControlPacket {
-    speed: float,
     step: Vector2,
     step_height_weight: float,
-    turn: float
+    turn_angle: float,
+    body_offset: Vector3,
+    body_rotation_angle: float,
+    body_rotation_axis: Vector3
 }
 
 
@@ -94,10 +96,23 @@ fn control_listener(tx: std::sync::mpsc::Sender<ControlPacket>) {
                 if let Ok(msg_text) = msg.into_text() {
                     if let Ok(json_data) = json::parse(msg_text.as_str()) {
                         let cp = ControlPacket{
-                            speed: json_data["speed"].as_f32().unwrap(),
-                            step: Vector2::new(json_data["step"]["x"].as_f32().unwrap(), json_data["step"]["y"].as_f32().unwrap()),
+                            step: Vector2::new(
+                                json_data["step"]["x"].as_f32().unwrap(),
+                                json_data["step"]["y"].as_f32().unwrap()
+                            ),
                             step_height_weight: json_data["step_height_weight"].as_f32().unwrap(),
-                            turn: json_data["turn"].as_f32().unwrap()
+                            turn_angle: json_data["turn_angle"].as_f32().unwrap(),
+                            body_offset: Vector3::new(
+                                json_data["body_offset"]["x"].as_f32().unwrap(),
+                                json_data["body_offset"]["y"].as_f32().unwrap(),
+                                json_data["body_offset"]["z"].as_f32().unwrap()
+                            ),
+                            body_rotation_angle: json_data["body_rotation_angle"].as_f32().unwrap(),
+                            body_rotation_axis: Vector3::new(
+                                json_data["body_rotation_axis"]["x"].as_f32().unwrap(),
+                                json_data["body_rotation_axis"]["y"].as_f32().unwrap(),
+                                json_data["body_rotation_axis"]["z"].as_f32().unwrap()
+                            )
                         };
 
                         tx.send(cp).expect("blah");
@@ -153,11 +168,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             leg_len2: 0.06,
             joint_offset: leg_joint_offset,
             legs_origin: legs_origin,
-            legs_end_pos_default: legs_end_pos,
+            legs_end_pos: legs_end_pos,
             max_speed: 0.16,
             max_step_radius: 0.05,
+            max_move_radius: 0.12,
             max_step_len: 0.08,
-            stop_sequence_speed: 0.5
+            max_turn_angle: FloatModule::consts::FRAC_PI_4,
+            max_body_offset: Vector3::new(0.03, 0.03, 0.03),
+            max_body_rotation: FloatModule::consts::FRAC_PI_8
         };
 
         let mut h = Hexapod::new(config);
@@ -172,7 +190,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             monitor_tx.send(create_pos_info_msg(&h)).unwrap();
 
             while let Ok(cp) = control_rx.try_recv() {
-                h.set_step(&cp.step, cp.turn, cp.step_height_weight);
+                h.set_step(&cp.step, cp.turn_angle, cp.step_height_weight);
+                h.set_body_offset(&cp.body_offset);
+                h.set_body_rotation(cp.body_rotation_angle, &cp.body_rotation_axis, &Vector3::zero());
             }
 
             std::thread::sleep(Duration::from_millis(cntr * period).saturating_sub(start.elapsed()));

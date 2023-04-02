@@ -4,52 +4,65 @@ use crate::math::{ FloatType as float, Vector2, Vector3 };
 use super::{ WalkSequenceFn };
 
 #[derive(Debug, Clone)]
-struct StepUpdate {
-    step: Vector2,
-    turn_origin: [Vector2; 6],
-    turn_angle: float,
-    step_height_weight: float,
-    max_step_radius: float
+pub struct WalkSequenceConfig {
+    pub leg_static_pos: [Vector3; 6],
+    pub step: Vector2,
+    pub turn_origin: [Vector2; 6],
+    pub turn_angle: float,
+    pub step_height_weight: float,
+    pub max_step_radius: float,
+    pub max_move_radius: float,
+    pub lift_ratio: float
 }
 
 #[derive(Debug, Clone)]
 pub struct WalkSequence {
     x: float,
     sequence_fns: [WalkSequenceFn; 6],
-    step_update: Option<StepUpdate>,
-    lift_ratio: float
+    config_active: Option<WalkSequenceConfig>,
+    config_update: Option<WalkSequenceConfig>
 }
 
 impl WalkSequence {
 
-    pub fn new(step: &Vector2, turn_origin: &[Vector2; 6], turn_angle: float, step_height_weight: float, lift_ratio: float) -> Self {
-        let seq_fn1 = WalkSequenceFn::new(1, &step, &turn_origin[0], turn_angle, step_height_weight, (1.0 / 6.0) * 0.0, lift_ratio);
-        let seq_fn2 = WalkSequenceFn::new(2, &step, &turn_origin[1], turn_angle, step_height_weight, (1.0 / 6.0) * 4.0, lift_ratio);
-        let seq_fn3 = WalkSequenceFn::new(3, &step, &turn_origin[2], turn_angle, step_height_weight, (1.0 / 6.0) * 2.0, lift_ratio);
-        let seq_fn4 = WalkSequenceFn::new(4, &step, &turn_origin[3], turn_angle, step_height_weight, (1.0 / 6.0) * 3.0, lift_ratio);
-        let seq_fn5 = WalkSequenceFn::new(5, &step, &turn_origin[4], turn_angle, step_height_weight, (1.0 / 6.0) * 1.0, lift_ratio);
-        let seq_fn6 = WalkSequenceFn::new(6, &step, &turn_origin[5], turn_angle, step_height_weight, (1.0 / 6.0) * 5.0, lift_ratio);
-        // let seq_fn1 = WalkSequenceFn::new(1, &step, &turn_origin[0], turn_angle, step_height_weight, 0.0, lift_ratio);
-        // let seq_fn2 = WalkSequenceFn::new(2, &step, &turn_origin[1], turn_angle, step_height_weight, 0.5, lift_ratio);
-        // let seq_fn3 = WalkSequenceFn::new(3, &step, &turn_origin[2], turn_angle, step_height_weight, 0.0, lift_ratio);
-        // let seq_fn4 = WalkSequenceFn::new(4, &step, &turn_origin[3], turn_angle, step_height_weight, 0.5, lift_ratio);
-        // let seq_fn5 = WalkSequenceFn::new(5, &step, &turn_origin[4], turn_angle, step_height_weight, 0.0, lift_ratio);
-        // let seq_fn6 = WalkSequenceFn::new(6, &step, &turn_origin[5], turn_angle, step_height_weight, 0.5, lift_ratio);
+    pub fn new(config: &WalkSequenceConfig) -> Self {
 
-        WalkSequence{
+        let seq_fn1 = WalkSequenceFn::new(1, (1.0 / 6.0) * 0.0, config.lift_ratio);
+        let seq_fn2 = WalkSequenceFn::new(2, (1.0 / 6.0) * 4.0, config.lift_ratio);
+        let seq_fn3 = WalkSequenceFn::new(3, (1.0 / 6.0) * 2.0, config.lift_ratio);
+        let seq_fn4 = WalkSequenceFn::new(4, (1.0 / 6.0) * 3.0, config.lift_ratio);
+        let seq_fn5 = WalkSequenceFn::new(5, (1.0 / 6.0) * 1.0, config.lift_ratio);
+        let seq_fn6 = WalkSequenceFn::new(6, (1.0 / 6.0) * 5.0, config.lift_ratio);
+
+        let mut walk_sequence = WalkSequence{
             x: 0.0,
             sequence_fns: [seq_fn1, seq_fn2, seq_fn3, seq_fn4, seq_fn5, seq_fn6],
-            step_update: None,
-            lift_ratio
-        }
+            config_active: None,
+            config_update: None
+        };
+
+        walk_sequence.update(config);
+
+        return walk_sequence;
     }
 
-    pub fn update(&mut self, step: &Vector2, turn_origin: &[Vector2; 6], turn_angle: float, step_height_weight: float, max_step_radius: float) {
+    pub fn update(&mut self, config: &WalkSequenceConfig) {
         let mut scaling_required = false;
         let mut min_scale = 1.0;
 
+        let (leg_static_pos, step, turn_origin, turn_angle, step_height_weight, max_step_radius, max_move_radius) = (
+            &config.leg_static_pos,
+            &config.step,
+            &config.turn_origin,
+            config.turn_angle,
+            config.step_height_weight,
+            config.max_step_radius,
+            config.max_move_radius
+        );
+
         for i in 0..6 {
-            if let Err(scale) = self.sequence_fns[i].update(&step, &turn_origin[i], turn_angle, step_height_weight, max_step_radius) {
+            if let Err(scale) = self.sequence_fns[i].update(step, &turn_origin[i], turn_angle, step_height_weight,
+                    max_step_radius, max_move_radius, &leg_static_pos[i]) {
                 if min_scale > scale {
                     min_scale = scale;
                     scaling_required = true;
@@ -62,21 +75,32 @@ impl WalkSequence {
             let turn_angle_scaled = turn_angle * min_scale;
 
             for i in 0..6 {
-                if let Err(scale) = self.sequence_fns[i].update(&step_scaled, &turn_origin[i], turn_angle_scaled, step_height_weight, max_step_radius) {
+                if let Err(scale) = self.sequence_fns[i].update(&step_scaled, &turn_origin[i], turn_angle_scaled,
+                        step_height_weight, max_step_radius, max_move_radius, &leg_static_pos[i]) {
                     println!("{:?}", self.sequence_fns[i]);
                     panic!("Step downscaling failed: scale={} min_scale={} {}", scale, min_scale, i);
                 }
             }
-            self.step_update = Some(StepUpdate{
-                step: step.clone(),
-                turn_origin: turn_origin.clone(),
-                turn_angle,
-                step_height_weight,
-                max_step_radius
-            });
+            let mut config_active = config.clone();
+            config_active.step = step_scaled;
+            config_active.turn_angle = turn_angle_scaled;
+            self.config_active = Some(config_active);
+            self.config_update = Some(config.clone());
         }
         else {
-            self.step_update = None;
+            self.config_active = Some(config.clone());
+            self.config_update = None;
+        }
+    }
+
+    pub fn update_leg_static_pos(&mut self, leg_static_pos: [Vector3; 6]) {
+        if let Some(config_update) = &mut self.config_update {
+            config_update.leg_static_pos = leg_static_pos;
+        }
+        else if let Some(config_active) = &self.config_active {
+            let mut config_update = config_active.clone();
+            config_update.leg_static_pos = leg_static_pos;
+            self.config_update = Some(config_update);
         }
     }
 
@@ -95,15 +119,15 @@ impl WalkSequence {
             .map(|x| x.dist())
             .fold(0.0, |acc, x| acc + x ) / 6.0;
 
-        let seq_dist_avg = distance / step_len_avg;
-        let seq_dist_max = max_distance / step_len_max;
+        let seq_dist_avg = if step_len_avg > 0.0 { distance / step_len_avg } else { 0.0 };
+        let seq_dist_max = if step_len_max > 0.0 { max_distance / step_len_max } else { 0.0 };
+
         if seq_dist_avg > seq_dist_max {
             self.x += seq_dist_max;
         }
         else {
             self.x += seq_dist_avg;
         }
-
 
         if self.x > 3.0 {
             self.x -=  1.0;
@@ -113,9 +137,8 @@ impl WalkSequence {
             seq_fn.advance(self.x);
         }
 
-        if let Some(step_update) = &self.step_update {
-            self.update(&step_update.step.clone(), &step_update.turn_origin.clone(), step_update.turn_angle,
-                step_update.step_height_weight, step_update.max_step_radius);
+        if let Some(config_update) = self.config_update.take() {
+            self.update(&config_update);
         }
     }
 
