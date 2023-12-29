@@ -69,6 +69,9 @@ fn monitor_listener(rx: std::sync::mpsc::Receiver<JsonValue>) {
         let mut ws_stream = accept(stream).expect("Failed to accept");
         info!("New WebSocket connection: {}", peer);
 
+        // Drain previous data from the receive queue.
+        while let Ok(_) = rx.try_recv() { }
+
         loop {
             let msg = rx.recv().unwrap();
             let msg_str = json::stringify(msg);
