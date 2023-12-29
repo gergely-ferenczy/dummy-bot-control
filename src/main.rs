@@ -192,7 +192,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             while let Ok(cp) = control_rx.try_recv() {
                 h.set_step(&cp.step, cp.turn_angle, cp.step_height_weight);
                 h.set_body_offset(&cp.body_offset);
-                h.set_body_rotation(cp.body_rotation_angle, &cp.body_rotation_axis, &Vector3::zero());
+                h.set_body_rotation(cp.body_rotation_angle, &cp.body_rotation_axis, &Vector3::new(0.0, 0.0, 0.02));
             }
 
             std::thread::sleep(Duration::from_millis(cntr * period).saturating_sub(start.elapsed()));

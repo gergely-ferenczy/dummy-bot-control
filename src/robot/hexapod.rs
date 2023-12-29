@@ -1,5 +1,6 @@
 use crate::math::{ transform, FloatType as float, Vector2, Vector3, Matrix3 };
 use super::{ Leg, WalkSequence, StopSequence, WalkSequenceConfig };
+use log::{ info };
 
 
 #[derive(Debug)]
@@ -19,18 +20,29 @@ pub struct HexapodConfig {
 }
 
 #[derive(Debug)]
+struct BodyRotation {
+    angle: float,
+    axis: Vector3,
+    origin: Vector3,
+    matrix: Matrix3
+}
+
+#[derive(Debug)]
 struct BodyPosition {
     offset: Vector3,
-    rotation: Matrix3,
-    rotation_origin: Vector3
+    rotation: BodyRotation
 }
 
 impl BodyPosition {
     pub fn new() -> Self {
-        Self{
+        Self {
             offset: Vector3::zero(),
-            rotation: Matrix3::identity(),
-            rotation_origin: Vector3::zero()
+            rotation: BodyRotation {
+                angle: 0.0,
+                axis: Vector3::new(0.0, 0.0, 1.0),
+                origin: Vector3::zero(),
+                matrix: Matrix3::identity(),
+            }
         }
     }
 }
@@ -89,59 +101,45 @@ impl Hexapod {
     }
 
     fn calc_leg_origin(&self, id: usize) -> Vector3 {
-        &self.body_pos.rotation * (&self.config.legs_origin[id] - &self.body_pos.rotation_origin)  + &self.body_pos.rotation_origin + &self.body_pos.offset
+        &self.body_pos.rotation.matrix * (&self.config.legs_origin[id] - &self.body_pos.rotation.origin)  + &self.body_pos.rotation.origin + &self.body_pos.offset
     }
 
     fn calc_leg_static_pos(&self, id: usize) -> Vector3 {
         &self.legs_end_pos[id] - &self.legs_origin[id]
     }
 
+    fn move_vector_towards(current: &mut Vector3, target: &Vector3, distance: float) {
+        let target_distance = target - (current as &_);
+        if target_distance.len() > 0.0 {
+            *current += target_distance.norm() * distance;
+            let new_target_distance = target - (current as &_);
+
+            if target_distance[0] >= 0.0 && new_target_distance[0] < 0.0 || target_distance[0] < 0.0 && new_target_distance[0] >= 0.0 ||
+                target_distance[1] >= 0.0 && new_target_distance[1] < 0.0 || target_distance[1] < 0.0 && new_target_distance[1] >= 0.0 ||
+                target_distance[2] >= 0.0 && new_target_distance[2] < 0.0 || target_distance[2] < 0.0 && new_target_distance[2] >= 0.0 {
+                    *current = target.clone();
+            }
+        }
+    }
+
     pub fn set_body_offset(&mut self, v: &Vector3) {
-        self.body_pos.offset = Vector3::new(
+        self.body_pos_target.offset = Vector3::new(
             v[0] * &self.config.max_body_offset[0],
             v[1] * &self.config.max_body_offset[1],
             v[2] * &self.config.max_body_offset[2]
         );
-
-        for i in 0..6 {
-            self.legs_origin[i] = self.calc_leg_origin(i);
-        }
-
-        let leg_static_pos = [
-            self.calc_leg_static_pos(0), self.calc_leg_static_pos(1), self.calc_leg_static_pos(2),
-            self.calc_leg_static_pos(3), self.calc_leg_static_pos(4), self.calc_leg_static_pos(5)
-        ];
-
-        if let Some(walk_sequence) = &mut self.walk_sequence {
-            walk_sequence.update_leg_static_pos(leg_static_pos);
-        }
-
-        self.update_legs();
     }
 
     pub fn set_body_rotation(&mut self, angle: float, axis: &Vector3, origin: &Vector3) {
         if axis.len() > 0.0 {
-            self.body_pos.rotation = transform::rotate_matrix3(angle * self.config.max_body_rotation, &axis);
+            self.body_pos_target.rotation.axis = axis.clone();
         }
         else {
-            self.body_pos.rotation = Matrix3::identity()
-        }
-        self.body_pos.rotation_origin = origin.clone();
-
-        for i in 0..6 {
-            self.legs_origin[i] = self.calc_leg_origin(i);
+            self.body_pos_target.rotation.axis = Vector3::new(0.0, 0.0, 1.0);
         }
 
-        let leg_static_pos = [
-            self.calc_leg_static_pos(0), self.calc_leg_static_pos(1), self.calc_leg_static_pos(2),
-            self.calc_leg_static_pos(3), self.calc_leg_static_pos(4), self.calc_leg_static_pos(5)
-        ];
-
-        if let Some(walk_sequence) = &mut self.walk_sequence {
-            walk_sequence.update_leg_static_pos(leg_static_pos);
-        }
-
-        self.update_legs();
+        self.body_pos_target.rotation.angle = angle * self.config.max_body_rotation;
+        self.body_pos_target.rotation.origin = origin.clone();
     }
 
     pub fn update(&mut self, time: u32) {
@@ -169,6 +167,69 @@ impl Hexapod {
                 self.legs_seq_pos[i] += walk_sequence.get_leg_pos(i);
             }
         }
+
+        // TODO: a touch more KISS and DRY and all good stuff would be great
+        // here. Also calculation documentation before I forget what this thing does.
+        let mut static_position_updated = false;
+        let time = (time as float) / 1000.0;
+        let distance = self.config.max_speed * time;
+
+        if self.body_pos.offset != self.body_pos_target.offset {
+            Self::move_vector_towards(&mut self.body_pos.offset, &self.body_pos_target.offset, distance);
+            static_position_updated = true;
+        }
+
+        if self.body_pos.rotation.origin != self.body_pos_target.rotation.origin {
+            Self::move_vector_towards(&mut self.body_pos.rotation.origin, &self.body_pos_target.rotation.origin, distance);
+            self.body_pos.rotation.matrix = transform::rotate_matrix3(self.body_pos.rotation.angle, &self.body_pos.rotation.axis);
+            static_position_updated = true;
+        }
+
+        if self.body_pos.rotation.angle != self.body_pos_target.rotation.angle ||
+            (self.body_pos_target.rotation.angle > 0.0 && self.body_pos.rotation.axis != self.body_pos_target.rotation.axis)
+        {
+            let angle_increment = distance / (self.config.max_move_radius / 2.0);
+            let rm1 = transform::rotate_matrix3(self.body_pos.rotation.angle, &self.body_pos.rotation.axis);
+            let rm2 = transform::rotate_matrix3(self.body_pos_target.rotation.angle, &self.body_pos_target.rotation.axis);
+            let v1 = Vector3::new(0.0, 0.0, 1.0);
+            let v2 = &rm1 * &v1;
+            let v3 = &rm2 * &v1;
+            let axis_between = v2.cross(&v3);
+            let angle_between = v2.angle(&v3);
+
+            if angle_between < angle_increment {
+                self.body_pos.rotation.angle = self.body_pos_target.rotation.angle;
+                self.body_pos.rotation.axis = self.body_pos_target.rotation.axis.clone();
+                self.body_pos.rotation.matrix = transform::rotate_matrix3(self.body_pos.rotation.angle, &self.body_pos.rotation.axis);
+            } else {
+                let rm3 = transform::rotate_matrix3(angle_increment, &axis_between);
+                let rm4 = rm3 * rm1;
+                let v4 = &rm4 * &v1;
+                let angle = v1.angle(&v4);
+                let axis = v1.cross(&v4);
+                self.body_pos.rotation.angle = angle;
+                self.body_pos.rotation.axis = axis;
+                self.body_pos.rotation.matrix = rm4.clone();
+            }
+
+            static_position_updated = true;
+        }
+
+        if static_position_updated {
+            for i in 0..6 {
+                self.legs_origin[i] = self.calc_leg_origin(i);
+            }
+
+            let leg_static_pos = [
+                self.calc_leg_static_pos(0), self.calc_leg_static_pos(1), self.calc_leg_static_pos(2),
+                self.calc_leg_static_pos(3), self.calc_leg_static_pos(4), self.calc_leg_static_pos(5)
+            ];
+
+            if let Some(walk_sequence) = &mut self.walk_sequence {
+                walk_sequence.update_leg_static_pos(leg_static_pos);
+            }
+        }
+
         self.update_legs();
     }
 
