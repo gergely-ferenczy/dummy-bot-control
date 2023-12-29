@@ -27,7 +27,7 @@ impl Vector2 {
         let l1 = self.len();
         let l2 = other.len();
 
-        if l1 == 0.0 && l2 == 0.0 {
+        if l1 == 0.0 || l2 == 0.0 {
             0.0
         }
         else {
@@ -216,6 +216,9 @@ mod tests {
         // 0° angles
         let v1 = Vector2::new(0.0, 0.0);
         let v2 = Vector2::new(0.0, 0.0);
+        assert_float_eq!(Vector2::angle(&v1, &v2), 0.0, TOL);
+        let v1 = Vector2::new(0.0, 0.0);
+        let v2 = Vector2::new(1.0, 0.0);
         assert_float_eq!(Vector2::angle(&v1, &v2), 0.0, TOL);
         let v1 = Vector2::new(1.0, 0.0);
         let v2 = Vector2::new(6.0, 0.0);
