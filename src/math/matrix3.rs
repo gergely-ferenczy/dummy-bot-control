@@ -179,6 +179,21 @@ impl Mul<&Vector3> for &Matrix3 {
 }
 impl_op_variants!(Mul, mul, *, Matrix3, Vector3, Vector3);
 
+impl Mul<&f32> for &Matrix3 {
+    type Output = Matrix3;
+
+    fn mul(self, rhs: &f32) -> Self::Output {
+        let a = &self.m;
+
+        Matrix3::new(
+            rhs * a[0], rhs * a[1], rhs * a[2],
+            rhs * a[3], rhs * a[4], rhs * a[5],
+            rhs * a[6], rhs * a[7], rhs * a[8]
+        )
+    }
+}
+impl_op_variants!(Mul, mul, *, Matrix3, f32, Matrix3);
+
 
 impl Index<usize> for Matrix3 {
     type Output = [float];
