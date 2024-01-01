@@ -49,7 +49,7 @@ macro_rules! impl_float_eq_trait {
                 let a = *self;
                 let b = *other;
                 let abs_sum = a.abs() + b.abs();
-                //println!("{} {} {}", a, b, tol);
+
                 // A simple equality check covers cases for exact match, inf and different but
                 // equal 0 representations like "-0.0 == 0.0".
                 a == b || {

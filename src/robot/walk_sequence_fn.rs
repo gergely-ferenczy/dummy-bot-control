@@ -47,27 +47,35 @@ impl WalkSequenceFn {
         }
     }
 
-    fn find_step_scale_factor(step_cfg: &WalkSequenceFnConfig, step_update: &WalkSequenceFnConfig, max_step_radius: float,
-            max_move_radius: float, leg_static_pos: &Vector3) -> float {
-
-        let max_step = Self::calc_max_step(step_cfg, step_update);
-        let max_step_radius_calc = max_step.len();
-        let max_move_radius_calc = (leg_static_pos + Vector3::from(max_step)).len();
+    #[allow(non_snake_case)]
+    fn find_step_scale_factor(&self, config_update: &WalkSequenceFnConfig, max_step_radius: float,
+            max_move_radius: float, leg_static_pos: &Vector3) -> float
+    {
+        let step_endpoint = self.calc_step_endpoint(config_update);
+        let (B_c, b, B_to, b_t) = Self::dissect_step_cfg(config_update);
+        let step_start = Self::step_pos(B_c, b, B_to, b_t, -0.5);
+        let step_end = Self::step_pos(B_c, b, B_to, b_t, 0.5);
+        let max_step_radius_calc = float::max(float::max(step_start.len(), step_end.len()), step_endpoint.len());
+        let max_move_radius_calc = float::max(float::max((leg_static_pos + Vector3::from(&step_start)).len(), (leg_static_pos + Vector3::from(&step_end)).len()), (leg_static_pos + Vector3::from(&step_endpoint)).len());
 
         let mut scale = 1.0;
 
-        if max_step_radius_calc > max_step_radius || max_move_radius_calc > max_move_radius {
+        if max_step_radius_calc > (max_step_radius + 1e-6) || max_move_radius_calc > (max_move_radius + 1e-6) {
             let mut scale_min = 0.0;
             let mut scale_max = 2.0;
-            let mut step_update_scaled = step_update.clone();
+            let mut config_update_scaled = config_update.clone();
 
             while float_ne!(scale_min, scale_max, 1e-6, abs) {
                 scale = (scale_min + scale_max) / 2.0;
-                step_update_scaled.step = &step_update.step * scale;
-                step_update_scaled.turn_angle = step_update.turn_angle * scale;
-                let max_step = Self::calc_max_step(step_cfg, &step_update_scaled);
-                let max_step_radius_calc = max_step.len();
-                let max_move_radius_calc = (leg_static_pos + Vector3::from(max_step)).len();
+                config_update_scaled.step = &config_update.step * scale;
+                config_update_scaled.turn_angle = config_update.turn_angle * scale;
+
+                let step_endpoint = self.calc_step_endpoint(&config_update_scaled); // TODO: duplicate code
+                let (B_c, b, B_to, b_t) = Self::dissect_step_cfg(&config_update_scaled);
+                let step_start = Self::step_pos(B_c, b, B_to, b_t, -0.5);
+                let step_end = Self::step_pos(B_c, b, B_to, b_t, 0.5);
+                let max_step_radius_calc = float::max(float::max(step_start.len(), step_end.len()), step_endpoint.len());
+                let max_move_radius_calc = float::max(float::max((leg_static_pos + Vector3::from(&step_start)).len(), (leg_static_pos + Vector3::from(&step_end)).len()), (leg_static_pos + Vector3::from(&step_endpoint)).len());
 
                 if max_step_radius_calc > max_step_radius || max_move_radius_calc > max_move_radius {
                     scale_max = scale;
@@ -77,12 +85,11 @@ impl WalkSequenceFn {
                 }
             }
         }
-
         return scale
     }
 
     pub fn update(&mut self, step: &Vector2, turn_origin: &Vector2, turn_angle: float, step_height_weight: float,
-            max_step_radius: float, max_move_radius: float, leg_static_pos: &Vector3) -> Result<(), float> {
+            max_step_radius: float, max_move_radius: float, leg_static_pos: &Vector3, force: bool) -> Result<(), float> {
 
         let config_update = WalkSequenceFnConfig{
             step: step.clone(),
@@ -92,20 +99,34 @@ impl WalkSequenceFn {
             step_height_weight
         };
 
-        let scale = Self::find_step_scale_factor(&self.config_active, &config_update, max_step_radius, max_move_radius, leg_static_pos);
-
-        if float_eq!(scale, 1.0, 1e-3, abs) {
-            if self.dist() == 0.0 {
-                self.config_active = config_update;
+        // TODO: redundant code
+        if force {
+            if self.dist() == 0.0 { // TODO: This is necessary, but there should be a better way to do this.
+                self.config_active = config_update.clone();
             }
             else {
-                self.config_update = Some(config_update);
+                self.config_update = Some(config_update.clone());
             }
             self.phase = 0;
+
             Ok(())
-        }
-        else {
-            Err(scale)
+        } else {
+            let scale = self.find_step_scale_factor(&config_update, max_step_radius, max_move_radius, leg_static_pos);
+
+            if float_eq!(scale, 1.0, 1e-3, abs) {
+                if self.dist() == 0.0 { // TODO: This is necessary, but there should be a better way to do this.
+                    self.config_active = config_update.clone();
+                }
+                else {
+                    self.config_update = Some(config_update.clone());
+                }
+                self.phase = 0;
+
+                Ok(())
+            }
+            else {
+                Err(scale)
+            }
         }
     }
 
@@ -169,16 +190,40 @@ impl WalkSequenceFn {
     }
 
     #[allow(non_snake_case)]
-    fn calc_max_step(a_cfg: &WalkSequenceFnConfig, b_cfg: &WalkSequenceFnConfig) -> Vector2 {
+    fn calc_step_endpoint(&self, config_update: &WalkSequenceFnConfig) -> Vector2 {
+        let a_cfg = &self.config_active;
+        let b_cfg = config_update;
         let (A_c, a, A_to, a_t) = Self::dissect_step_cfg(a_cfg);
-        let A_end = Self::step_pos(A_c, a, A_to, a_t, 0.5);
+        let (_B_c, b, B_to, b_t) = Self::dissect_step_cfg(b_cfg);
 
-        let b = &b_cfg.step;
-        let B_to = &b_cfg.turn_origin;
-        let b_rm = transform::rotate_matrix2(b_cfg.turn_angle);
-        let b_rm_neg = transform::rotate_matrix2(-b_cfg.turn_angle);
+        let x = self.x;
+        let rl = self.lift_ratio;
+        let rp = 1.0 - self.lift_ratio;
+        let (c1, c2, c3) = self.get_phase_shift_points();
+        let xm = (x - c3) % 1.0;
 
-        b_rm_neg * (A_end - b + b_rm * B_to - B_to)
+        if x < c1 || (x >= c2 && x < c3) || xm >= rl {
+            let p = if x < c1 {
+                -x/rp
+            } else if x >= c2 && x < c3 {
+                -c1/rp + (c2-c1)/rl - (x-c2)/rp
+            } else {
+                0.5 - (xm-rl)/rp
+            };
+            let C_c = Self::calc_intersecting_step_center(a_cfg, b_cfg, p);
+
+            Self::step_pos(&C_c, b, B_to, b_t, -0.5)
+        } else {
+            let b_rm = transform::rotate_matrix2(b_t);
+            let b_rm_neg = transform::rotate_matrix2(-b_t);
+            let A_p = if x >= c1 && x < c2 {
+                Self::step_pos(A_c, a, A_to, a_t, -c1/rp + (x-c1)/rl)
+            } else {
+                Self::step_pos(A_c, a, A_to, a_t, 0.5)
+            };
+
+            b_rm_neg * (A_p - b + b_rm * B_to - B_to)
+        }
     }
 
     fn copy_step_details(&mut self, other: &WalkSequenceFnConfig) {

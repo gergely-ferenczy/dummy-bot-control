@@ -19,7 +19,7 @@ pub struct WalkSequenceConfig {
 pub struct WalkSequence {
     x: float,
     sequence_fns: [WalkSequenceFn; 6],
-    config_active: Option<WalkSequenceConfig>,
+    config_active: Option<WalkSequenceConfig>, // TODO: Revisit this, Option may not be necessary.
     config_update: Option<WalkSequenceConfig>
 }
 
@@ -62,7 +62,7 @@ impl WalkSequence {
 
         for i in 0..6 {
             if let Err(scale) = self.sequence_fns[i].update(step, &turn_origin[i], turn_angle, step_height_weight,
-                    max_step_radius, max_move_radius, &leg_static_pos[i]) {
+                    max_step_radius, max_move_radius, &leg_static_pos[i], false) {
                 if min_scale > scale {
                     min_scale = scale;
                     scaling_required = true;
@@ -75,11 +75,8 @@ impl WalkSequence {
             let turn_angle_scaled = turn_angle * min_scale;
 
             for i in 0..6 {
-                if let Err(scale) = self.sequence_fns[i].update(&step_scaled, &turn_origin[i], turn_angle_scaled,
-                        step_height_weight, max_step_radius, max_move_radius, &leg_static_pos[i]) {
-                    println!("{:?}", self.sequence_fns[i]);
-                    panic!("Step downscaling failed: scale={} min_scale={} {}", scale, min_scale, i);
-                }
+                let _ = self.sequence_fns[i].update(&step_scaled, &turn_origin[i], turn_angle_scaled,
+                    step_height_weight, max_step_radius, max_move_radius, &leg_static_pos[i], true);
             }
             let mut config_active = config.clone();
             config_active.step = step_scaled;
