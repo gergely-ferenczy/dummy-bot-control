@@ -217,13 +217,13 @@ macro_rules! assert_float_ne {
     };
 }
 
-#[cfg(math_float_precision="64")]
+#[cfg(feature="math_double_precision")]
 pub type FloatType = f64;
-#[cfg(math_float_precision="64")]
+#[cfg(feature="math_double_precision")]
 pub use std::f64 as FloatModule;
-#[cfg(not(math_float_precision="64"))]
+#[cfg(not(feature="math_double_precision"))]
 pub type FloatType = f32;
-#[cfg(not(math_float_precision="64"))]
+#[cfg(not(feature="math_double_precision"))]
 pub use std::f32 as FloatModule;
 
 mod circle;

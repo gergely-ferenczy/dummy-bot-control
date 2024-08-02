@@ -11,3 +11,6 @@ log = "0.4.17"
 tokio = { version = "1.*", features = ["full"] }
 tokio-tungstenite = "0.18.*"
 tungstenite = "0.18.*"
+
+[features]
+math_double_precision = []
