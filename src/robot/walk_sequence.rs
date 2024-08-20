@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 
 use crate::math::{ FloatType as float, Vector2, Vector3 };
-use super::{ WalkSequenceFn };
+use super::{ WalkSequenceFn, WalkSequencePhase };
 
 #[derive(Debug, Clone)]
 pub struct WalkSequenceConfig {
@@ -104,27 +104,19 @@ impl WalkSequence {
     /// Advances the sequence based on the provided parameters.
     ///
     /// `speed` must be given in m/s and `time` must be given in ms.
-    pub fn advance(&mut self, speed: float, max_speed: float, time: u32) {
+    pub fn advance(&mut self, speed: float, time: u32) {
         let time = (time as float) / 1000.0;
         let distance = speed * time;
-        let max_distance = max_speed * time;
 
-        let step_len_max = self.sequence_fns.iter()
-            .map(|x| x.dist())
-            .max_by(|x, y| x.partial_cmp(y).unwrap()).unwrap();
-        let step_len_avg =  self.sequence_fns.iter()
-            .map(|x| x.dist())
-            .fold(0.0, |acc, x| acc + x ) / 6.0;
+        let first_push_step = self.sequence_fns.iter().find(|s| s.phase() == WalkSequencePhase::Push);
+        let step_dist = match first_push_step {
+            Some(s) => s.dist(),
+            None => 0.0,
+        };
+        let lr = self.config_active.as_ref().unwrap().lift_ratio;
+        let sequence_dist = (distance / step_dist) * (1.0 - lr);
 
-        let seq_dist_avg = if step_len_avg > 0.0 { distance / step_len_avg } else { 0.0 };
-        let seq_dist_max = if step_len_max > 0.0 { max_distance / step_len_max } else { 0.0 };
-
-        if seq_dist_avg > seq_dist_max {
-            self.x += seq_dist_max;
-        }
-        else {
-            self.x += seq_dist_avg;
-        }
+        self.x += sequence_dist;
 
         if self.x > 3.0 {
             self.x -=  1.0;

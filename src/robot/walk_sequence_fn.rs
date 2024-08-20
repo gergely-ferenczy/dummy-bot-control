@@ -11,6 +11,12 @@ struct WalkSequenceFnConfig {
     step_height_weight: float
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum WalkSequencePhase {
+    Push,
+    Lift
+}
+
 #[derive(Debug, Clone)]
 pub struct WalkSequenceFn {
     x: float,
@@ -358,6 +364,19 @@ impl WalkSequenceFn {
             else {
                 Vector3::from(self.calc_step_pos(0.5 - (xm-rl)/rp))
             }
+        }
+    }
+
+    pub fn phase(&self) -> WalkSequencePhase {
+        let x = self.x;
+        let (c1, c2, c3) = self.get_phase_shift_points();
+        let rl = self.lift_ratio;
+
+        if x < c1 || x >= c2 && x < c3 || (x - c3) % 1.0 >= rl {
+            WalkSequencePhase::Push
+        }
+        else {
+            WalkSequencePhase::Lift
         }
     }
 }

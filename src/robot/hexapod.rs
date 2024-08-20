@@ -162,7 +162,7 @@ impl Hexapod {
             }
         }
         else if let Some(walk_sequence) = &mut self.walk_sequence {
-            walk_sequence.advance(self.speed, self.config.max_speed, time);
+            walk_sequence.advance(self.speed, time);
             for i in 0..6 {
                 self.legs_seq_pos[i] += walk_sequence.get_leg_pos(i);
             }
