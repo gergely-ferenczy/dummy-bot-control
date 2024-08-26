@@ -2,11 +2,11 @@
 
 use std::time::{ Duration, Instant };
 use std::io::Write;
-use log::{ info };
+use log::info;
 
 use std::net::TcpListener;
 use tungstenite::{ accept, Message };
-use json::{ JsonValue };
+use json::JsonValue;
 
 mod math;
 mod robot;
@@ -173,7 +173,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             legs_origin: legs_origin,
             legs_end_pos: legs_end_pos,
             max_speed: 0.16,
-            max_step_radius: 0.05,
+            max_step_radius: 0.04,
             max_move_radius: 0.12,
             max_step_len: 0.08,
             max_turn_angle: FloatModule::consts::FRAC_PI_4,

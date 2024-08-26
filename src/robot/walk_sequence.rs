@@ -108,13 +108,14 @@ impl WalkSequence {
         let time = (time as float) / 1000.0;
         let distance = speed * time;
 
-        let first_push_step = self.sequence_fns.iter().find(|s| s.phase() == WalkSequencePhase::Push);
-        let step_dist = match first_push_step {
-            Some(s) => s.dist(),
-            None => 0.0,
-        };
+        let max_push_step_dist = self.sequence_fns.iter()
+            .filter(|s| s.phase() == WalkSequencePhase::Push)
+            .map(|s| s.dist())
+            .max_by(|x, y| x.partial_cmp(y).unwrap())
+            .unwrap();
+
         let lr = self.config_active.as_ref().unwrap().lift_ratio;
-        let sequence_dist = (distance / step_dist) * (1.0 - lr);
+        let sequence_dist = (distance / max_push_step_dist) * (1.0 - lr);
 
         self.x += sequence_dist;
 

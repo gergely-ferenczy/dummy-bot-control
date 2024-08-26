@@ -248,9 +248,9 @@ impl Hexapod {
         // TODO: handle out-of-range values.
         let step = if step.len() > 1.0 { step.norm() } else { step.clone() };
         let step_len = step.len();
-        let step_scaled = if step.len() > 0.0 { step.norm() * (0.5 + 0.5 * step.len()) * self.config.max_step_len } else { step };
+        let step_scaled = if step.len() > 0.0 { step.norm() * (0.3 + 0.7 * step.len()) * self.config.max_step_len } else { step };
         let turn = turn.clamp(-1.0, 1.0);
-        let turn_angle = if turn != 0.0 { turn / turn.abs() * (0.5 + 0.5 * turn.abs()) * self.config.max_turn_angle } else { 0.0 };
+        let turn_angle = if turn != 0.0 { turn / turn.abs() * (0.3 + 0.7 * turn.abs()) * self.config.max_turn_angle } else { 0.0 };
 
         let mut turn_origin = [Vector2::zero(), Vector2::zero(), Vector2::zero(), Vector2::zero(), Vector2::zero(), Vector2::zero()];
 
